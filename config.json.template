@@ -1,0 +1,16 @@
+{
+  "port": 3000,
+  "admin": {
+    "password": "change_this_password"
+  },
+  "logging": {
+    "directory": "logs",
+    "retentionDays": 30
+  },
+  "openai": {
+    "apiKey": "your_api_key_here",
+    "apiUrl": "https://api.openai.com/v1/chat/completions",
+    "model": "gpt-3.5-turbo",
+    "maxTokens": 500
+  }
+}

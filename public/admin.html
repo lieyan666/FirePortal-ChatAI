@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - FirePortal ChatAI</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #f5f5f7;
+      padding: 20px;
+    }
+
+    /* Login Screen */
+    .login-container {
+      max-width: 400px;
+      margin: 100px auto;
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.1);
+    }
+
+    .login-container h1 {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .login-container input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: 1px solid #d2d2d7;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    .login-container button {
+      width: 100%;
+    }
+
+    /* Main Panel */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: none;
+    }
+
+    .container.active {
+      display: block;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+      color: #1d1d1f;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin: 30px 0 15px;
+      color: #1d1d1f;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #86868b;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 600;
+      color: #1d1d1f;
+    }
+
+    .actions {
+      margin-bottom: 20px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #d2d2d7;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      font-size: 16px;
+      color: #86868b;
+    }
+
+    .tab.active {
+      color: #0071e3;
+      border-bottom-color: #0071e3;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    button {
+      background: #0071e3;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+
+    button:hover {
+      background: #0077ed;
+    }
+
+    button.danger {
+      background: #ff3b30;
+    }
+
+    button.danger:hover {
+      background: #ff453a;
+    }
+
+    button.secondary {
+      background: #86868b;
+    }
+
+    table {
+      width: 100%;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #e5e5e7;
+    }
+
+    th {
+      background: #f5f5f7;
+      font-weight: 600;
+      color: #1d1d1f;
+      font-size: 14px;
+    }
+
+    td {
+      font-size: 14px;
+      color: #1d1d1f;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .link {
+      color: #0071e3;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      width: 90%;
+    }
+
+    .modal-header {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d2d2d7;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .chat-message {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .chat-message.user {
+      background: #e3f2fd;
+    }
+
+    .chat-message.assistant {
+      background: #f5f5f5;
+    }
+
+    .chat-role {
+      font-weight: 600;
+      font-size: 12px;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+
+    .chat-content {
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+
+    .log-entry {
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      padding: 8px;
+      margin-bottom: 5px;
+      background: #f5f5f5;
+      border-radius: 4px;
+      border-left: 3px solid #0071e3;
+    }
+
+    .log-entry.error {
+      border-left-color: #ff3b30;
+    }
+
+    .log-entry.warn {
+      border-left-color: #ff9500;
+    }
+
+    .log-timestamp {
+      color: #86868b;
+    }
+
+    .notes-cell {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div class="login-container" id="login-screen">
+    <h1>Admin Login</h1>
+    <input type="password" id="password" placeholder="Password" onkeypress="handleLoginKeyPress(event)">
+    <button onclick="login()">Login</button>
+    <p id="login-error" style="color: #ff3b30; margin-top: 10px; text-align: center;"></p>
+  </div>
+
+  <!-- Main Panel -->
+  <div class="container" id="main-panel">
+    <div class="header">
+      <div>
+        <h1>Admin Panel</h1>
+        <p style="color: #86868b;">FirePortal ChatAI Management</p>
+      </div>
+      <button class="secondary" onclick="logout()">Logout</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value" id="stat-users">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Messages</div>
+        <div class="stat-value" id="stat-messages">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Tokens</div>
+        <div class="stat-value" id="stat-tokens">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active Today</div>
+        <div class="stat-value" id="stat-active">-</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('users')">Users</button>
+      <button class="tab" onclick="switchTab('logs')">Logs</button>
+    </div>
+
+    <!-- Users Tab -->
+    <div class="tab-content active" id="tab-users">
+      <div class="actions">
+        <button onclick="showCreateUserModal()">Create New User</button>
+        <button onclick="loadUsers()">Refresh</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>UUID</th>
+            <th>Notes</th>
+            <th>Created</th>
+            <th>Last Active</th>
+            <th>Messages</th>
+            <th>Tokens</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="users-table">
+          <tr><td colspan="7" style="text-align: center; color: #86868b;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Logs Tab -->
+    <div class="tab-content" id="tab-logs">
+      <div class="actions">
+        <button onclick="loadLogs()">Refresh Logs</button>
+        <select id="log-limit" onchange="loadLogs()">
+          <option value="100">Last 100</option>
+          <option value="200">Last 200</option>
+          <option value="500">Last 500</option>
+        </select>
+      </div>
+
+      <div id="logs-container" style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <p style="color: #86868b; text-align: center;">Loading logs...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create User Modal -->
+  <div class="modal" id="create-user-modal">
+    <div class="modal-content">
+      <div class="modal-header">Create New User</div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea id="new-user-notes" rows="3" placeholder="User description or notes"></textarea>
+      </div>
+      <button onclick="createUser()">Create</button>
+      <button class="secondary" onclick="closeModal('create-user-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Edit Notes Modal -->
+  <div class="modal" id="edit-notes-modal">
+    <div class="modal-content">
+      <div class="modal-header">Edit User Notes</div>
+      <input type="hidden" id="edit-notes-uuid">
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="edit-notes-text" rows="3"></textarea>
+      </div>
+      <button onclick="saveNotes()">Save</button>
+      <button class="secondary" onclick="closeModal('edit-notes-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Chat Modal -->
+  <div class="modal" id="chat-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        Chat History
+        <button class="secondary" style="float: right;" onclick="closeModal('chat-modal')">Close</button>
+      </div>
+      <div id="chat-content"></div>
+    </div>
+  </div>
+
+  <script>
+    let authToken = localStorage.getItem('adminToken');
+
+    // Check if already logged in
+    if (authToken) {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main-panel').classList.add('active');
+      init();
+    }
+
+    // Login
+    function handleLoginKeyPress(e) {
+      if (e.keyCode === 13) login();
+    }
+
+    function login() {
+      const password = document.getElementById('password').value;
+
+      fetch('/admin/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          authToken = data.token;
+          localStorage.setItem('adminToken', authToken);
+          document.getElementById('login-screen').style.display = 'none';
+          document.getElementById('main-panel').classList.add('active');
+          init();
+        } else {
+          document.getElementById('login-error').textContent = 'Invalid password';
+        }
+      })
+      .catch(err => {
+        document.getElementById('login-error').textContent = 'Login failed';
+      });
+    }
+
+    function logout() {
+      authToken = null;
+      localStorage.removeItem('adminToken');
+      location.reload();
+    }
+
+    // API Helper
+    function apiCall(url, options = {}) {
+      options.headers = options.headers || {};
+      options.headers['Authorization'] = `Bearer ${authToken}`;
+
+      return fetch(url, options)
+        .then(res => {
+          if (res.status === 401) {
+            logout();
+            throw new Error('Unauthorized');
+          }
+          return res.json();
+        });
+    }
+
+    // Tab switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+
+      if (tab === 'logs') {
+        loadLogs();
+      }
+    }
+
+    // Initialize
+    function init() {
+      loadStats();
+      loadUsers();
+    }
+
+    // Load statistics
+    function loadStats() {
+      apiCall('/admin/api/stats')
+        .then(data => {
+          if (data.success) {
+            document.getElementById('stat-users').textContent = data.stats.totalUsers;
+            document.getElementById('stat-messages').textContent = data.stats.totalMessages;
+            document.getElementById('stat-tokens').textContent = data.stats.totalTokens.toLocaleString();
+            document.getElementById('stat-active').textContent = data.stats.activeUsersToday;
+          }
+        })
+        .catch(err => console.error('Error loading stats:', err));
+    }
+
+    // Load users
+    function loadUsers() {
+      apiCall('/admin/api/users')
+        .then(data => {
+          if (data.success) {
+            const tbody = document.getElementById('users-table');
+            tbody.innerHTML = '';
+
+            if (data.users.length === 0) {
+              tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #86868b;">No users yet</td></tr>';
+              return;
+            }
+
+            data.users.forEach(user => {
+              const tr = document.createElement('tr');
+              const url = window.location.origin + '/user/' + user.uuid;
+
+              tr.innerHTML = `
+                <td><a href="${url}" class="link" target="_blank">${user.uuid}</a></td>
+                <td class="notes-cell" title="${user.notes || ''}">${user.notes || '-'}</td>
+                <td>${new Date(user.createdAt).toLocaleString()}</td>
+                <td>${new Date(user.lastActiveAt).toLocaleString()}</td>
+                <td>${user.messageCount}</td>
+                <td>${(user.tokenUsage || 0).toLocaleString()}</td>
+                <td>
+                  <button onclick="viewChats('${user.uuid}')">Chats</button>
+                  <button onclick="editNotes('${user.uuid}', '${(user.notes || '').replace(/'/g, "\\'")}')">Edit Notes</button>
+                  <button onclick="copyLink('${url}')">Copy Link</button>
+                  <button class="danger" onclick="deleteUserConfirm('${user.uuid}')">Delete</button>
+                </td>
+              `;
+              tbody.appendChild(tr);
+            });
+          }
+        })
+        .catch(err => {
+          console.error('Error loading users:', err);
+          document.getElementById('users-table').innerHTML = '<tr><td colspan="7" style="text-align: center; color: red;">Error loading users</td></tr>';
+        });
+    }
+
+    // Create user modal
+    function showCreateUserModal() {
+      document.getElementById('new-user-notes').value = '';
+      document.getElementById('create-user-modal').classList.add('active');
+    }
+
+    // Create user
+    function createUser() {
+      const notes = document.getElementById('new-user-notes').value;
+
+      apiCall('/admin/api/user/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      })
+      .then(data => {
+        if (data.success) {
+          closeModal('create-user-modal');
+          loadUsers();
+          loadStats();
+        }
+      })
+      .catch(err => {
+        alert('Error creating user');
+      });
+    }
+
+    // Edit notes
+    function editNotes(uuid, notes) {
+      document.getElementById('edit-notes-uuid').value = uuid;
+      document.getElementById('edit-notes-text').value = notes;
+      document.getElementById('edit-notes-modal').classList.add('active');
+    }
+
+    function saveNotes() {
+      const uuid = document.getElementById('edit-notes-uuid').value;
+      const notes = document.getElementById('edit-notes-text').value;
+
+      apiCall(`/admin/api/user/${uuid}/notes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      })
+      .then(data => {
+        if (data.success) {
+          closeModal('edit-notes-modal');
+          loadUsers();
+        }
+      })
+      .catch(err => {
+        alert('Error updating notes');
+      });
+    }
+
+    // Delete user
+    function deleteUserConfirm(uuid) {
+      if (!confirm(`Delete user ${uuid} and all their chats?`)) return;
+
+      apiCall(`/admin/api/user/${uuid}`, { method: 'DELETE' })
+        .then(data => {
+          if (data.success) {
+            loadUsers();
+            loadStats();
+          }
+        })
+        .catch(err => {
+          alert('Error deleting user');
+        });
+    }
+
+    // View chats
+    function viewChats(uuid) {
+      apiCall(`/admin/api/user/${uuid}/chats`)
+        .then(data => {
+          if (data.success) {
+            const content = document.getElementById('chat-content');
+            content.innerHTML = '';
+
+            if (data.chats.length === 0) {
+              content.innerHTML = '<p style="color: #86868b;">No chats yet</p>';
+            } else {
+              data.chats.forEach(chat => {
+                const div = document.createElement('div');
+                div.className = 'chat-message ' + chat.role;
+                div.innerHTML = `
+                  <div class="chat-role">${chat.role}</div>
+                  <div class="chat-content">${chat.content}</div>
+                  <div style="font-size: 11px; color: #86868b; margin-top: 5px;">
+                    ${new Date(chat.timestamp).toLocaleString()}
+                    <button class="danger" style="float: right; padding: 4px 8px; font-size: 11px;" onclick="deleteChat('${chat.id}', '${uuid}')">Delete</button>
+                  </div>
+                `;
+                content.appendChild(div);
+              });
+            }
+
+            document.getElementById('chat-modal').classList.add('active');
+          }
+        })
+        .catch(err => {
+          alert('Error loading chats');
+        });
+    }
+
+    // Delete chat
+    function deleteChat(chatId, uuid) {
+      if (!confirm('Delete this message?')) return;
+
+      apiCall(`/admin/api/chat/${chatId}`, { method: 'DELETE' })
+        .then(data => {
+          if (data.success) {
+            viewChats(uuid);
+            loadUsers();
+          }
+        })
+        .catch(err => {
+          alert('Error deleting chat');
+        });
+    }
+
+    // Load logs
+    function loadLogs() {
+      const limit = document.getElementById('log-limit').value;
+
+      apiCall(`/admin/api/logs?limit=${limit}`)
+        .then(data => {
+          if (data.success) {
+            const container = document.getElementById('logs-container');
+            container.innerHTML = '';
+
+            if (data.logs.length === 0) {
+              container.innerHTML = '<p style="color: #86868b; text-align: center;">No logs yet</p>';
+              return;
+            }
+
+            data.logs.forEach(log => {
+              const div = document.createElement('div');
+              div.className = 'log-entry ' + log.level;
+
+              const meta = Object.keys(log).filter(k => !['timestamp', 'level', 'message'].includes(k));
+              const metaStr = meta.length > 0 ? ' | ' + JSON.stringify(meta.reduce((obj, k) => { obj[k] = log[k]; return obj; }, {})) : '';
+
+              div.innerHTML = `
+                <span class="log-timestamp">${log.timestamp}</span>
+                [${log.level.toUpperCase()}] ${log.message}${metaStr}
+              `;
+              container.appendChild(div);
+            });
+          }
+        })
+        .catch(err => {
+          document.getElementById('logs-container').innerHTML = '<p style="color: red; text-align: center;">Error loading logs</p>';
+        });
+    }
+
+    // Copy link
+    function copyLink(url) {
+      const textarea = document.createElement('textarea');
+      textarea.value = url;
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      try {
+        document.execCommand('copy');
+        alert('Link copied to clipboard!');
+      } catch (err) {
+        alert('Failed to copy. URL: ' + url);
+      }
+
+      document.body.removeChild(textarea);
+    }
+
+    // Close modal
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // Auto refresh
+    setInterval(() => {
+      loadStats();
+      if (document.getElementById('tab-users').classList.contains('active')) {
+        loadUsers();
+      }
+    }, 30000);
+  </script>
+</body>
+</html>

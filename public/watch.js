@@ -1,0 +1,244 @@
+/* ES5 兼容的 Apple Watch Chat 客户端 */
+
+(function() {
+  'use strict';
+
+  // 全局状态
+  var isLoading = false;
+  var userUUID = null;
+
+  // 从 URL 获取 UUID
+  function getUserUUID() {
+    var path = window.location.pathname;
+    var match = path.match(/\/user\/([^\/]+)/);
+    return match ? match[1] : null;
+  }
+
+  // 创建消息元素
+  function createMessageElement(role, content) {
+    var messageDiv = document.createElement('div');
+    messageDiv.className = 'message ' + role;
+
+    var contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.textContent = content;
+
+    messageDiv.appendChild(contentDiv);
+    return messageDiv;
+  }
+
+  // 添加消息到界面
+  function addMessage(role, content) {
+    var messagesContainer = document.getElementById('messages');
+    var messageEl = createMessageElement(role, content);
+    messagesContainer.appendChild(messageEl);
+
+    // 滚动到底部
+    setTimeout(function() {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 100);
+  }
+
+  // 显示错误
+  function showError(message) {
+    var errorDiv = document.createElement('div');
+    errorDiv.className = 'error';
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+
+    setTimeout(function() {
+      if (errorDiv.parentNode) {
+        errorDiv.parentNode.removeChild(errorDiv);
+      }
+    }, 3000);
+  }
+
+  // 设置加载状态
+  function setLoading(loading) {
+    isLoading = loading;
+    var loadingEl = document.getElementById('loading');
+    var sendBtn = document.getElementById('send');
+    var inputEl = document.getElementById('input');
+
+    loadingEl.style.display = loading ? 'block' : 'none';
+    sendBtn.disabled = loading;
+    inputEl.disabled = loading;
+  }
+
+  // 加载聊天历史
+  function loadHistory() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/chat/' + userUUID + '?limit=30', true);
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success && response.chats) {
+            var messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+
+            for (var i = 0; i < response.chats.length; i++) {
+              var chat = response.chats[i];
+              addMessage(chat.role, chat.content);
+            }
+          }
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      showError('Failed to load history');
+    };
+
+    xhr.send();
+  }
+
+  // 发送消息
+  function sendMessage() {
+    if (isLoading) return;
+
+    var inputEl = document.getElementById('input');
+    var message = inputEl.value.trim();
+
+    if (!message) return;
+
+    // 添加用户消息到界面
+    addMessage('user', message);
+    inputEl.value = '';
+
+    // 设置加载状态
+    setLoading(true);
+
+    // 发送到服务器
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/chat/' + userUUID, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+
+    xhr.onload = function() {
+      setLoading(false);
+
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success && response.reply) {
+            addMessage('assistant', response.reply);
+          } else {
+            showError(response.error || 'Unknown error');
+          }
+        } catch (e) {
+          showError('Parse error');
+        }
+      } else {
+        try {
+          var errorResponse = JSON.parse(xhr.responseText);
+          showError(errorResponse.error || 'Server error');
+        } catch (e) {
+          showError('Server error');
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      setLoading(false);
+      showError('Network error');
+    };
+
+    xhr.send(JSON.stringify({ message: message }));
+  }
+
+  // 清空聊天记录
+  function clearChat() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('DELETE', '/api/chat/' + userUUID + '/clear', true);
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success) {
+            var messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+          }
+        } catch (e) {
+          showError('Clear failed');
+        }
+      } else {
+        showError('Clear failed');
+      }
+    };
+
+    xhr.onerror = function() {
+      showError('Network error');
+    };
+
+    xhr.send();
+  }
+
+  // 切换菜单
+  function toggleMenu() {
+    var menu = document.getElementById('menu');
+    var isVisible = menu.style.display === 'block';
+    menu.style.display = isVisible ? 'none' : 'block';
+  }
+
+  // 确认清空聊天
+  function clearChatConfirm() {
+    if (confirm('Clear all chat history?')) {
+      clearChat();
+      toggleMenu();
+    }
+  }
+
+  // 回车发送
+  function handleKeyPress(e) {
+    if (e.keyCode === 13 && !isLoading) {
+      sendMessage();
+    }
+  }
+
+  // 初始化
+  function init() {
+    userUUID = getUserUUID();
+
+    if (!userUUID) {
+      showError('Invalid user URL');
+      return;
+    }
+
+    // 绑定输入框回车事件
+    var inputEl = document.getElementById('input');
+    if (inputEl.addEventListener) {
+      inputEl.addEventListener('keypress', handleKeyPress);
+    } else if (inputEl.attachEvent) {
+      inputEl.attachEvent('onkeypress', handleKeyPress);
+    }
+
+    // 绑定发送按钮点击事件
+    var sendBtn = document.getElementById('send');
+    if (sendBtn.addEventListener) {
+      sendBtn.addEventListener('click', sendMessage);
+    } else if (sendBtn.attachEvent) {
+      sendBtn.attachEvent('onclick', sendMessage);
+    }
+
+    // 加载历史消息
+    loadHistory();
+  }
+
+  // 暴露全局函数供 HTML 使用
+  window.toggleMenu = toggleMenu;
+  window.clearChatConfirm = clearChatConfirm;
+
+  // 页面加载完成后初始化
+  if (document.readyState === 'complete') {
+    init();
+  } else if (window.addEventListener) {
+    window.addEventListener('load', init);
+  } else if (window.attachEvent) {
+    window.attachEvent('onload', init);
+  }
+
+})();

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI Chat</title>
+  <link rel="stylesheet" href="/watch.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header with menu button -->
+    <div id="header">
+      <span id="title">AI Chat</span>
+      <button id="menu-btn" onclick="toggleMenu()">⋯</button>
+    </div>
+
+    <!-- Menu -->
+    <div id="menu" style="display:none;">
+      <button onclick="clearChatConfirm()">Clear Chat</button>
+      <button onclick="toggleMenu()">Close</button>
+    </div>
+
+    <!-- Messages Container -->
+    <div id="messages"></div>
+
+    <!-- Input Area -->
+    <div id="input-area">
+      <input type="text" id="input" placeholder="Type message...">
+      <button id="send">Send</button>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" style="display:none;">Sending...</div>
+  </div>
+
+  <script src="/watch.js"></script>
+</body>
+</html>

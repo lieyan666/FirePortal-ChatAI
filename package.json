@@ -1,0 +1,17 @@
+{
+  "name": "fireportal-chatai",
+  "version": "1.0.0",
+  "description": "Simpliest AI Chat WebUI for Apple Watch",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["ai", "chat", "apple-watch", "openai"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.4.0"
+  }
+}
