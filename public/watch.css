@@ -7,7 +7,7 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   background: #000;
   color: #fff;
   overflow-x: hidden;
@@ -18,8 +18,8 @@ body {
   height: 100vh;
   display: block;
   position: relative;
-  padding-top: 40px;
-  padding-bottom: 60px;
+  padding-top: 50px;
+  padding-bottom: 70px;
 }
 
 /* Header */
@@ -28,34 +28,35 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 40px;
+  height: 50px;
   background: #1C1C1E;
   border-bottom: 1px solid #333;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 8px;
+  padding: 0 10px;
   z-index: 100;
 }
 
 #title-section {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
   justify-content: center;
 }
 
 #title {
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
 }
 
 #model-name {
-  font-size: 11px;
+  font-size: 13px;
   color: #86868b;
   cursor: pointer;
   user-select: none;
+  transition: color 0.2s ease;
 }
 
 #model-name:active {
@@ -63,61 +64,72 @@ body {
 }
 
 #conv-btn, #menu-btn {
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   background: transparent;
   border: none;
   color: #0A84FF;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: bold;
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
 #conv-btn:active, #menu-btn:active {
   color: #0066CC;
+  transform: scale(0.9);
 }
 
 /* Conversations Sidebar */
 #conversations-sidebar {
   position: fixed;
-  top: 40px;
+  top: 50px;
   left: 0;
   bottom: 0;
-  width: 70%;
-  max-width: 250px;
+  width: 75%;
+  max-width: 280px;
   background: #1C1C1E;
   border-right: 1px solid #333;
   z-index: 101;
-  display: flex;
+  display: none;
   flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+#conversations-sidebar.show {
+  transform: translateX(0);
 }
 
 #conv-header {
-  padding: 12px;
+  padding: 15px;
   border-bottom: 1px solid #333;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
+  font-size: 16px;
 }
 
 #conv-header button {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   background: #0A84FF;
   border: none;
-  border-radius: 14px;
+  border-radius: 16px;
   color: #fff;
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
   padding: 0;
   line-height: 1;
+  transition: transform 0.2s ease, background 0.2s ease;
 }
 
 #conv-header button:active {
   background: #0066CC;
+  transform: scale(0.9);
 }
 
 #conv-list {
@@ -131,6 +143,7 @@ body {
   border-bottom: 1px solid #333;
   background: transparent;
   position: relative;
+  transition: background 0.2s ease;
 }
 
 .conv-item.active {
@@ -139,13 +152,14 @@ body {
 
 .conv-item-main {
   flex: 1;
-  padding: 10px 12px;
+  padding: 12px 15px;
   cursor: pointer;
   background: transparent;
   color: #fff;
   text-align: left;
   border: none;
   display: block;
+  transition: background 0.2s ease;
 }
 
 .conv-item-main:active {
@@ -157,48 +171,57 @@ body {
 }
 
 .conv-item-title {
-  font-size: 14px;
-  margin-bottom: 4px;
+  font-size: 16px;
+  margin-bottom: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .conv-item-time {
-  font-size: 11px;
+  font-size: 13px;
   color: #86868b;
 }
 
 .conv-item-delete {
-  width: 40px;
+  width: 45px;
   flex-shrink: 0;
   background: transparent;
   border: none;
   color: #FF453A;
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 300;
   cursor: pointer;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .conv-item-delete:active {
   background: rgba(255, 69, 58, 0.2);
+  transform: scale(0.9);
 }
 
 /* Model Selector */
 #model-selector {
   position: fixed;
-  top: 40px;
+  top: 50px;
   left: 0;
   right: 0;
   background: #2C2C2E;
   border-bottom: 1px solid #333;
   z-index: 101;
-  max-height: 200px;
+  max-height: 250px;
   overflow-y: auto;
+  display: none;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+}
+
+#model-selector.show {
+  transform: translateY(0);
 }
 
 #model-list {
@@ -207,16 +230,17 @@ body {
 }
 
 .model-item {
-  padding: 10px 12px;
+  padding: 14px 15px;
   background: transparent;
   border: none;
   border-bottom: 1px solid #333;
   color: #fff;
-  font-size: 14px;
+  font-size: 16px;
   text-align: left;
   cursor: pointer;
   display: block;
   width: 100%;
+  transition: background 0.2s ease;
 }
 
 .model-item:last-child {
@@ -235,27 +259,37 @@ body {
 /* Menu */
 #menu {
   position: fixed;
-  top: 40px;
+  top: 50px;
   right: 0;
   background: #2C2C2E;
   border: 1px solid #333;
-  border-radius: 8px;
-  margin: 4px;
+  border-radius: 10px;
+  margin: 6px;
   z-index: 101;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  display: none;
+  opacity: 0;
+  transform: scale(0.9) translateY(-10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#menu.show {
+  opacity: 1;
+  transform: scale(1) translateY(0);
 }
 
 #menu button {
   display: block;
   width: 100%;
-  padding: 10px 16px;
+  padding: 14px 20px;
   background: transparent;
   border: none;
   color: #fff;
-  font-size: 14px;
+  font-size: 16px;
   text-align: left;
   cursor: pointer;
   border-bottom: 1px solid #333;
+  transition: background 0.2s ease;
 }
 
 #menu button:last-child {
@@ -269,17 +303,30 @@ body {
 /* 消息容器 */
 #messages {
   width: 100%;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 120px);
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 8px;
+  padding: 12px 10px;
   -webkit-overflow-scrolling: touch;
 }
 
 /* 消息气泡 */
 .message {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   clear: both;
+  animation: messageIn 0.3s ease;
+  position: relative;
+}
+
+@keyframes messageIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message.user {
@@ -293,10 +340,10 @@ body {
 .message-content {
   display: inline-block;
   max-width: 85%;
-  padding: 8px 10px;
-  border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.4;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 16px;
+  line-height: 1.5;
   word-wrap: break-word;
 }
 
@@ -310,6 +357,163 @@ body {
   color: #fff;
 }
 
+/* 消息元数据（时间和模型） */
+.message-meta {
+  font-size: 11px;
+  color: #86868b;
+  margin-top: 4px;
+  display: inline-block;
+}
+
+.message.user .message-meta {
+  text-align: right;
+}
+
+.message.assistant .message-meta {
+  text-align: left;
+}
+
+/* 消息操作按钮 */
+.message-actions-btn {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  background: rgba(28, 28, 30, 0.9);
+  border: 1px solid #333;
+  border-radius: 12px;
+  color: #86868b;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.message.user:hover .message-actions-btn {
+  opacity: 1;
+}
+
+.message-actions-btn:active {
+  background: #3A3A3C;
+  color: #fff;
+}
+
+/* 消息操作菜单 */
+#message-actions-menu {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: #2C2C2E;
+  border: 1px solid #333;
+  border-radius: 12px;
+  z-index: 1500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+}
+
+#message-actions-menu.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.action-menu-item {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.action-menu-item:last-child {
+  border-bottom: none;
+}
+
+.action-menu-item:active {
+  background: #3A3A3C;
+}
+
+/* 选择器遮罩层（模型选择等） */
+.select-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.select-overlay.show {
+  opacity: 1;
+}
+
+.select-dialog {
+  background: #2C2C2E;
+  border-radius: 16px;
+  width: 85%;
+  max-width: 300px;
+  max-height: 70vh;
+  overflow-y: auto;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.select-overlay.show .select-dialog {
+  transform: scale(1);
+}
+
+.select-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  padding: 16px;
+  border-bottom: 1px solid #333;
+}
+
+.select-item {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: #fff;
+  font-size: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.select-item:last-child {
+  border-bottom: none;
+}
+
+.select-item:active {
+  background: #3A3A3C;
+}
+
+.select-item.active-select {
+  background: #0A84FF;
+  color: #fff;
+}
+
 /* 输入区域 - 固定底部 */
 #input-area {
   position: fixed;
@@ -317,89 +521,211 @@ body {
   left: 0;
   right: 0;
   background: #1C1C1E;
-  padding: 8px;
+  padding: 10px;
   display: block;
   border-top: 1px solid #333;
 }
 
 #input {
-  width: calc(100% - 60px);
-  height: 36px;
-  padding: 8px;
-  font-size: 14px;
+  width: calc(100% - 70px);
+  height: 42px;
+  padding: 10px 14px;
+  font-size: 16px;
   border: 1px solid #333;
-  border-radius: 18px;
+  border-radius: 21px;
   background: #2C2C2E;
   color: #fff;
   float: left;
   outline: none;
+  transition: border-color 0.2s ease;
+}
+
+#input:focus {
+  border-color: #0A84FF;
 }
 
 #send {
-  width: 52px;
-  height: 36px;
-  margin-left: 4px;
+  width: 60px;
+  height: 42px;
+  margin-left: 6px;
   background: #0A84FF;
   color: #fff;
   border: none;
-  border-radius: 18px;
-  font-size: 13px;
+  border-radius: 21px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   float: right;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 #send:active {
   background: #0066CC;
+  transform: scale(0.95);
 }
 
 #send:disabled {
   background: #333;
   color: #666;
+  transform: scale(1);
 }
 
 /* 加载提示 */
 #loading {
   position: fixed;
-  top: 10px;
+  top: 60px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(28, 28, 30, 0.9);
+  background: rgba(28, 28, 30, 0.95);
   color: #0A84FF;
-  padding: 6px 12px;
-  border-radius: 12px;
-  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 16px;
+  font-size: 14px;
   z-index: 1000;
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* 错误提示 */
-.error {
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Toast 通知 */
+#toast {
   position: fixed;
-  top: 10px;
+  top: 60px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(255, 59, 48, 0.9);
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 12px;
-  font-size: 12px;
+  padding: 10px 18px;
+  border-radius: 16px;
+  font-size: 14px;
   z-index: 1000;
+  max-width: 80%;
+  text-align: center;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.toast-error {
+  background: rgba(255, 59, 48, 0.95);
+  color: #fff;
+}
+
+.toast-success {
+  background: rgba(52, 199, 89, 0.95);
+  color: #fff;
+}
+
+.toast-info {
+  background: rgba(10, 132, 255, 0.95);
+  color: #fff;
+}
+
+/* 确认对话框遮罩层 */
+#confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#confirm-overlay.show {
+  opacity: 1;
+}
+
+/* 确认对话框 */
+#confirm-dialog {
+  background: #2C2C2E;
+  border-radius: 16px;
+  width: 85%;
+  max-width: 300px;
+  padding: 20px;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+#confirm-overlay.show #confirm-dialog {
+  transform: scale(1);
+}
+
+#confirm-message {
+  font-size: 16px;
+  color: #fff;
+  text-align: center;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+#confirm-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+#confirm-cancel {
+  background: #3A3A3C;
+  color: #fff;
+}
+
+#confirm-cancel:active {
+  background: #4A4A4C;
+  transform: scale(0.95);
+}
+
+.confirm-primary {
+  background: #FF453A;
+  color: #fff;
+}
+
+.confirm-primary:active {
+  background: #E03830;
+  transform: scale(0.95);
 }
 
 /* 重新生成按钮 */
 .regenerate-btn {
-  margin-top: 6px;
-  padding: 4px 10px;
+  margin-top: 8px;
+  padding: 6px 14px;
   background: #2C2C2E;
   border: 1px solid #0A84FF;
-  border-radius: 10px;
+  border-radius: 12px;
   color: #0A84FF;
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
   display: inline-block;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .regenerate-btn:active {
   background: #0A84FF;
   color: #fff;
+  transform: scale(0.95);
 }

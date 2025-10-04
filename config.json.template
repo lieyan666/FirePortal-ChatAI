@@ -28,5 +28,25 @@
       "name": "GPT-5 Mini",
       "default": false
     }
-  ]
+  ],
+  "systemPrompts": {
+    "default": "You are a helpful AI assistant.",
+    "presets": [
+      {
+        "id": "default",
+        "name": "Default",
+        "content": "You are a helpful AI assistant."
+      },
+      {
+        "id": "concise",
+        "name": "Concise",
+        "content": "You are a helpful AI assistant. Keep your answers concise and to the point."
+      },
+      {
+        "id": "creative",
+        "name": "Creative",
+        "content": "You are a creative AI assistant. Think outside the box and provide imaginative solutions."
+      }
+    ]
+  }
 }

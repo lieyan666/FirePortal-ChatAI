@@ -10,6 +10,9 @@
   var selectedModel = null;
   var conversations = [];
   var currentConversation = null;
+  var confirmCallback = null;
+  var systemPrompts = [];
+  var selectedSystemPrompt = null;
 
   // 从 URL 获取 UUID
   function getUserUUID() {
@@ -19,15 +22,45 @@
   }
 
   // 创建消息元素
-  function createMessageElement(role, content, showRegenerate) {
+  function createMessageElement(role, content, showRegenerate, chat) {
     var messageDiv = document.createElement('div');
     messageDiv.className = 'message ' + role;
+    messageDiv.setAttribute('data-chat-id', chat.id || '');
 
     var contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
     contentDiv.textContent = content;
 
     messageDiv.appendChild(contentDiv);
+
+    // 添加元数据（时间和模型）
+    if (chat) {
+      var metaDiv = document.createElement('div');
+      metaDiv.className = 'message-meta';
+
+      var timeText = formatChatTime(chat.timestamp);
+      var modelText = chat.modelId ? getModelNameById(chat.modelId) : '';
+
+      if (modelText) {
+        metaDiv.textContent = timeText + ' · ' + modelText;
+      } else {
+        metaDiv.textContent = timeText;
+      }
+
+      messageDiv.appendChild(metaDiv);
+    }
+
+    // 如果是用户消息，添加操作按钮
+    if (role === 'user') {
+      var actionsBtn = document.createElement('button');
+      actionsBtn.className = 'message-actions-btn';
+      actionsBtn.textContent = '⋯';
+      actionsBtn.onclick = function(e) {
+        e.stopPropagation();
+        showMessageActions(chat);
+      };
+      messageDiv.appendChild(actionsBtn);
+    }
 
     // 如果是 AI 消息且需要显示重新生成按钮
     if (role === 'assistant' && showRegenerate) {
@@ -44,9 +77,9 @@
   }
 
   // 添加消息到界面
-  function addMessage(role, content, showRegenerate) {
+  function addMessage(role, content, showRegenerate, chat) {
     var messagesContainer = document.getElementById('messages');
-    var messageEl = createMessageElement(role, content, showRegenerate);
+    var messageEl = createMessageElement(role, content, showRegenerate, chat);
     messagesContainer.appendChild(messageEl);
 
     // 滚动到底部
@@ -55,18 +88,65 @@
     }, 100);
   }
 
-  // 显示错误
-  function showError(message) {
-    var errorDiv = document.createElement('div');
-    errorDiv.className = 'error';
-    errorDiv.textContent = message;
-    document.body.appendChild(errorDiv);
+  // 显示 Toast 通知
+  function showToast(message, type) {
+    var toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast-' + (type || 'info');
+    toast.style.display = 'block';
 
     setTimeout(function() {
-      if (errorDiv.parentNode) {
-        errorDiv.parentNode.removeChild(errorDiv);
-      }
+      toast.style.display = 'none';
     }, 3000);
+  }
+
+  // 显示错误
+  function showError(message) {
+    showToast(message, 'error');
+  }
+
+  // 显示成功
+  function showSuccess(message) {
+    showToast(message, 'success');
+  }
+
+  // 显示确认对话框
+  function showConfirm(message, onConfirm, confirmText) {
+    var overlay = document.getElementById('confirm-overlay');
+    var messageEl = document.getElementById('confirm-message');
+    var okBtn = document.getElementById('confirm-ok');
+
+    messageEl.textContent = message;
+    okBtn.textContent = confirmText || 'Confirm';
+    confirmCallback = onConfirm;
+
+    overlay.style.display = 'flex';
+    setTimeout(function() {
+      overlay.classList.add('show');
+    }, 10);
+  }
+
+  // 隐藏确认对话框
+  function hideConfirm() {
+    var overlay = document.getElementById('confirm-overlay');
+    overlay.classList.remove('show');
+    setTimeout(function() {
+      overlay.style.display = 'none';
+      confirmCallback = null;
+    }, 300);
+  }
+
+  // 确认对话框 - 确定
+  function handleConfirmOk() {
+    if (confirmCallback) {
+      confirmCallback();
+    }
+    hideConfirm();
+  }
+
+  // 确认对话框 - 取消
+  function handleConfirmCancel() {
+    hideConfirm();
   }
 
   // 设置加载状态
@@ -197,16 +277,140 @@
     }
   }
 
-  // 格式化时间
-  function formatTime(timestamp) {
+  // 格式化聊天时间
+  function formatChatTime(timestamp) {
     var date = new Date(timestamp);
-    var now = new Date();
-    var diff = now - date;
+    var hours = date.getHours();
+    var minutes = date.getMinutes();
+    var ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    return hours + ':' + minutes + ' ' + ampm;
+  }
 
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-    return Math.floor(diff / 86400000) + 'd ago';
+  // 根据模型ID获取模型名称
+  function getModelNameById(modelId) {
+    for (var i = 0; i < models.length; i++) {
+      if (models[i].id === modelId) {
+        return models[i].name;
+      }
+    }
+    return modelId;
+  }
+
+  // 显示消息操作菜单
+  function showMessageActions(chat) {
+    var menu = document.getElementById('message-actions-menu');
+    if (!menu) {
+      menu = document.createElement('div');
+      menu.id = 'message-actions-menu';
+      menu.style.display = 'none';
+      document.body.appendChild(menu);
+    }
+
+    menu.innerHTML = '';
+
+    var regenerateBtn = document.createElement('button');
+    regenerateBtn.className = 'action-menu-item';
+    regenerateBtn.textContent = 'Regenerate';
+    regenerateBtn.onclick = function() {
+      hideMessageActions();
+      regenerateWithMessage(chat.content, null);
+    };
+
+    var changeModelBtn = document.createElement('button');
+    changeModelBtn.className = 'action-menu-item';
+    changeModelBtn.textContent = 'Change Model & Regenerate';
+    changeModelBtn.onclick = function() {
+      hideMessageActions();
+      showModelSelectorForRegenerate(chat.content);
+    };
+
+    menu.appendChild(regenerateBtn);
+    menu.appendChild(changeModelBtn);
+
+    menu.style.display = 'block';
+    setTimeout(function() {
+      menu.classList.add('show');
+    }, 10);
+  }
+
+  // 隐藏消息操作菜单
+  function hideMessageActions() {
+    var menu = document.getElementById('message-actions-menu');
+    if (menu) {
+      menu.classList.remove('show');
+      setTimeout(function() {
+        menu.style.display = 'none';
+      }, 200);
+    }
+  }
+
+  // 显示模型选择器用于重新生成
+  function showModelSelectorForRegenerate(message) {
+    var overlay = document.createElement('div');
+    overlay.id = 'model-select-overlay';
+    overlay.className = 'select-overlay';
+
+    var dialog = document.createElement('div');
+    dialog.className = 'select-dialog';
+
+    var title = document.createElement('div');
+    title.className = 'select-title';
+    title.textContent = 'Select Model';
+    dialog.appendChild(title);
+
+    for (var i = 0; i < models.length; i++) {
+      var model = models[i];
+      var btn = document.createElement('button');
+      btn.className = 'select-item';
+      btn.textContent = model.name;
+
+      (function(m) {
+        btn.onclick = function() {
+          document.body.removeChild(overlay);
+          regenerateWithMessage(message, m.id);
+        };
+      })(model);
+
+      dialog.appendChild(btn);
+    }
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    setTimeout(function() {
+      overlay.classList.add('show');
+    }, 10);
+
+    overlay.onclick = function(e) {
+      if (e.target === overlay) {
+        overlay.classList.remove('show');
+        setTimeout(function() {
+          if (overlay.parentNode) {
+            document.body.removeChild(overlay);
+          }
+        }, 300);
+      }
+    };
+  }
+
+  // 用指定消息和模型重新生成
+  function regenerateWithMessage(message, modelId) {
+    if (isLoading || !currentConversation) return;
+
+    // 移除最后一条 AI 消息
+    var messagesContainer = document.getElementById('messages');
+    var messages = messagesContainer.getElementsByClassName('message');
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].classList.contains('assistant')) {
+        messagesContainer.removeChild(messages[i]);
+        break;
+      }
+    }
+
+    sendMessage(message, true, modelId || (selectedModel ? selectedModel.id : null));
   }
 
   // 切换会话
@@ -219,6 +423,18 @@
     if (autoClose !== false) {
       toggleConversations();
     }
+  }
+
+  // 格式化会话时间
+  function formatTime(timestamp) {
+    var date = new Date(timestamp);
+    var now = new Date();
+    var diff = now - date;
+
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return Math.floor(diff / 86400000) + 'd ago';
   }
 
   // 加载会话的聊天记录
@@ -240,7 +456,7 @@
               var chat = response.chats[i];
               // 只在最后一条 AI 消息上显示重新生成按钮
               var isLastAssistant = (i === response.chats.length - 1 && chat.role === 'assistant');
-              addMessage(chat.role, chat.content, isLastAssistant);
+              addMessage(chat.role, chat.content, isLastAssistant, chat);
             }
           }
         } catch (e) {
@@ -285,40 +501,41 @@
 
   // 删除会话（通用方法）
   function deleteConversation(conversationId) {
-    if (!confirm('Delete this conversation?')) return;
+    showConfirm('Delete this conversation?', function() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('DELETE', '/api/conversations/' + conversationId, true);
 
-    var xhr = new XMLHttpRequest();
-    xhr.open('DELETE', '/api/conversations/' + conversationId, true);
+      xhr.onload = function() {
+        if (xhr.status === 200) {
+          // 从列表中移除
+          conversations = conversations.filter(function(c) {
+            return c.id !== conversationId;
+          });
 
-    xhr.onload = function() {
-      if (xhr.status === 200) {
-        // 从列表中移除
-        conversations = conversations.filter(function(c) {
-          return c.id !== conversationId;
-        });
+          // 如果删除的是当前会话，需要切换
+          if (currentConversation && currentConversation.id === conversationId) {
+            currentConversation = null;
+            document.getElementById('messages').innerHTML = '';
 
-        // 如果删除的是当前会话，需要切换
-        if (currentConversation && currentConversation.id === conversationId) {
-          currentConversation = null;
-          document.getElementById('messages').innerHTML = '';
-
-          // 选择第一个会话或创建新的
-          if (conversations.length > 0) {
-            switchConversation(conversations[0], false);
-          } else {
-            createNewConversation(false);
+            // 选择第一个会话或创建新的
+            if (conversations.length > 0) {
+              switchConversation(conversations[0], false);
+            } else {
+              createNewConversation(false);
+            }
           }
+
+          renderConversations();
+          showSuccess('Conversation deleted');
         }
+      };
 
-        renderConversations();
-      }
-    };
+      xhr.onerror = function() {
+        showError('Failed to delete conversation');
+      };
 
-    xhr.onerror = function() {
-      showError('Failed to delete conversation');
-    };
-
-    xhr.send();
+      xhr.send();
+    }, 'Delete');
   }
 
   // 删除当前会话（从菜单调用）
@@ -340,10 +557,121 @@
 
     // 关闭其他面板
     menu.style.display = 'none';
+    menu.classList.remove('show');
     selector.style.display = 'none';
+    selector.classList.remove('show');
 
     var isVisible = sidebar.style.display === 'flex' || sidebar.style.display === 'block';
-    sidebar.style.display = isVisible ? 'none' : 'flex';
+    if (isVisible) {
+      sidebar.classList.remove('show');
+      setTimeout(function() {
+        sidebar.style.display = 'none';
+      }, 300);
+    } else {
+      sidebar.style.display = 'flex';
+      setTimeout(function() {
+        sidebar.classList.add('show');
+      }, 10);
+    }
+  }
+
+  // 加载系统提示词
+  function loadSystemPrompts() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/system-prompts', true);
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success && response.presets) {
+            systemPrompts = response.presets;
+            // 默认选择第一个
+            if (systemPrompts.length > 0) {
+              selectedSystemPrompt = systemPrompts[0];
+            }
+          }
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      console.error('Failed to load system prompts');
+    };
+
+    xhr.send();
+  }
+
+  // 显示系统提示词选择器
+  function showSystemPromptSelector() {
+    toggleMenu(); // 关闭菜单
+
+    var overlay = document.createElement('div');
+    overlay.className = 'select-overlay';
+
+    var dialog = document.createElement('div');
+    dialog.className = 'select-dialog';
+
+    var title = document.createElement('div');
+    title.className = 'select-title';
+    title.textContent = 'System Prompt';
+    dialog.appendChild(title);
+
+    // 添加 "None" 选项
+    var noneBtn = document.createElement('button');
+    noneBtn.className = 'select-item';
+    noneBtn.textContent = 'None';
+    if (!selectedSystemPrompt) {
+      noneBtn.className += ' active-select';
+    }
+    noneBtn.onclick = function() {
+      selectedSystemPrompt = null;
+      document.body.removeChild(overlay);
+      showSuccess('System prompt disabled');
+    };
+    dialog.appendChild(noneBtn);
+
+    // 添加预设
+    for (var i = 0; i < systemPrompts.length; i++) {
+      var prompt = systemPrompts[i];
+      var btn = document.createElement('button');
+      btn.className = 'select-item';
+      btn.textContent = prompt.name;
+
+      if (selectedSystemPrompt && prompt.id === selectedSystemPrompt.id) {
+        btn.className += ' active-select';
+      }
+
+      (function(p) {
+        btn.onclick = function() {
+          selectedSystemPrompt = p;
+          document.body.removeChild(overlay);
+          showSuccess('System prompt: ' + p.name);
+        };
+      })(prompt);
+
+      dialog.appendChild(btn);
+    }
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    setTimeout(function() {
+      overlay.classList.add('show');
+    }, 10);
+
+    overlay.onclick = function(e) {
+      if (e.target === overlay) {
+        overlay.classList.remove('show');
+        setTimeout(function() {
+          if (overlay.parentNode) {
+            document.body.removeChild(overlay);
+          }
+        }, 300);
+      }
+    };
   }
 
   // 加载模型列表
@@ -441,14 +769,26 @@
 
     // 关闭其他面板
     menu.style.display = 'none';
+    menu.classList.remove('show');
     sidebar.style.display = 'none';
+    sidebar.classList.remove('show');
 
     var isVisible = selector.style.display === 'block';
-    selector.style.display = isVisible ? 'none' : 'block';
+    if (isVisible) {
+      selector.classList.remove('show');
+      setTimeout(function() {
+        selector.style.display = 'none';
+      }, 300);
+    } else {
+      selector.style.display = 'block';
+      setTimeout(function() {
+        selector.classList.add('show');
+      }, 10);
+    }
   }
 
   // 发送消息
-  function sendMessage(messageToSend, isRegenerate) {
+  function sendMessage(messageToSend, isRegenerate, forceModelId) {
     if (isLoading) return;
 
     var inputEl = document.getElementById('input');
@@ -456,9 +796,19 @@
 
     if (!message) return;
 
+    var useModelId = forceModelId || (selectedModel ? selectedModel.id : null);
+    var useSystemPrompt = selectedSystemPrompt ? selectedSystemPrompt.content : null;
+
     // 如果不是重新生成，添加用户消息到界面
     if (!isRegenerate) {
-      addMessage('user', message);
+      var tempChat = {
+        id: 'temp-' + Date.now(),
+        role: 'user',
+        content: message,
+        modelId: useModelId,
+        timestamp: new Date().toISOString()
+      };
+      addMessage('user', message, false, tempChat);
       inputEl.value = '';
     }
 
@@ -477,20 +827,17 @@
         try {
           var response = JSON.parse(xhr.responseText);
           if (response.success && response.reply) {
-            // 如果是重新生成，移除最后一条 AI 消息
-            if (isRegenerate) {
-              var messagesContainer = document.getElementById('messages');
-              var messages = messagesContainer.getElementsByClassName('message');
-              for (var i = messages.length - 1; i >= 0; i--) {
-                if (messages[i].classList.contains('assistant')) {
-                  messagesContainer.removeChild(messages[i]);
-                  break;
-                }
-              }
-            }
+            // 如果是重新生成，移除最后一条 AI 消息（已在 regenerateWithMessage 中处理）
 
             // 添加新的 AI 回复，显示重新生成按钮
-            addMessage('assistant', response.reply, true);
+            var aiChat = {
+              id: 'temp-ai-' + Date.now(),
+              role: 'assistant',
+              content: response.reply,
+              modelId: useModelId,
+              timestamp: new Date().toISOString()
+            };
+            addMessage('assistant', response.reply, true, aiChat);
 
             // 如果返回了新的会话ID，更新当前会话
             if (response.conversationId && (!currentConversation || currentConversation.id !== response.conversationId)) {
@@ -519,8 +866,9 @@
 
     xhr.send(JSON.stringify({
       message: message,
-      model: selectedModel ? selectedModel.id : null,
-      conversationId: currentConversation ? currentConversation.id : null
+      model: useModelId,
+      conversationId: currentConversation ? currentConversation.id : null,
+      systemPrompt: useSystemPrompt
     }));
   }
 
@@ -556,10 +904,22 @@
 
     // 关闭其他面板
     selector.style.display = 'none';
+    selector.classList.remove('show');
     sidebar.style.display = 'none';
+    sidebar.classList.remove('show');
 
     var isVisible = menu.style.display === 'block';
-    menu.style.display = isVisible ? 'none' : 'block';
+    if (isVisible) {
+      menu.classList.remove('show');
+      setTimeout(function() {
+        menu.style.display = 'none';
+      }, 200);
+    } else {
+      menu.style.display = 'block';
+      setTimeout(function() {
+        menu.classList.add('show');
+      }, 10);
+    }
   }
 
   // 回车发送
@@ -594,9 +954,31 @@
       sendBtn.attachEvent('onclick', sendMessage);
     }
 
+    // 绑定确认对话框按钮
+    var confirmOkBtn = document.getElementById('confirm-ok');
+    var confirmCancelBtn = document.getElementById('confirm-cancel');
+    if (confirmOkBtn.addEventListener) {
+      confirmOkBtn.addEventListener('click', handleConfirmOk);
+      confirmCancelBtn.addEventListener('click', handleConfirmCancel);
+    } else if (confirmOkBtn.attachEvent) {
+      confirmOkBtn.attachEvent('onclick', handleConfirmOk);
+      confirmCancelBtn.attachEvent('onclick', handleConfirmCancel);
+    }
+
+    // 点击遮罩层关闭确认对话框
+    var confirmOverlay = document.getElementById('confirm-overlay');
+    if (confirmOverlay.addEventListener) {
+      confirmOverlay.addEventListener('click', function(e) {
+        if (e.target === confirmOverlay) {
+          handleConfirmCancel();
+        }
+      });
+    }
+
     // 加载数据
     loadModels();
     loadConversations();
+    loadSystemPrompts();
   }
 
   // 暴露全局函数供 HTML 使用
@@ -605,6 +987,7 @@
   window.toggleConversations = toggleConversations;
   window.createNewConversation = createNewConversation;
   window.deleteCurrentConversation = deleteCurrentConversation;
+  window.showSystemPromptSelector = showSystemPromptSelector;
 
   // 页面加载完成后初始化
   if (document.readyState === 'complete') {

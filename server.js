@@ -245,7 +245,7 @@ function getConversationChats(conversationId) {
   );
 }
 
-function addChat(uuid, conversationId, role, content) {
+function addChat(uuid, conversationId, role, content, modelId) {
   const chats = readJSON(CHATS_FILE);
   const chat = {
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -253,6 +253,7 @@ function addChat(uuid, conversationId, role, content) {
     conversationId: conversationId,
     role: role,
     content: content,
+    modelId: modelId || null,
     timestamp: new Date().toISOString()
   };
   chats.push(chat);
@@ -372,7 +373,7 @@ app.get('/api/chat/:uuid', (req, res) => {
 // API: 发送消息
 app.post('/api/chat/:uuid', async (req, res) => {
   const { uuid } = req.params;
-  const { message, model, conversationId } = req.body;
+  const { message, model, conversationId, systemPrompt } = req.body;
 
   if (!message || !message.trim()) {
     return res.status(400).json({ success: false, error: 'Message is required' });
@@ -406,8 +407,8 @@ app.post('/api/chat/:uuid', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid model' });
     }
 
-    // 保存用户消息
-    addChat(uuid, conversation.id, 'user', message);
+    // 保存用户消息（带 modelId）
+    addChat(uuid, conversation.id, 'user', message, selectedModel.id);
     updateUserActivity(uuid);
 
     // 获取对话历史（最近10条用于上下文）
@@ -416,6 +417,15 @@ app.post('/api/chat/:uuid', async (req, res) => {
       role: h.role,
       content: h.content
     }));
+
+    // 添加系统提示词（如果有）
+    const systemPromptContent = systemPrompt || config.systemPrompts?.default || null;
+    if (systemPromptContent) {
+      messages.unshift({
+        role: 'system',
+        content: systemPromptContent
+      });
+    }
 
     // 调用 OpenAI API
     const apiUrl = config.openai.apiUrl;
@@ -439,8 +449,8 @@ app.post('/api/chat/:uuid', async (req, res) => {
 
     const aiReply = response.data.choices[0].message.content;
 
-    // 保存 AI 回复
-    addChat(uuid, conversation.id, 'assistant', aiReply);
+    // 保存 AI 回复（带 modelId）
+    addChat(uuid, conversation.id, 'assistant', aiReply, selectedModel.id);
 
     // 更新 token 使用统计
     const users = readJSON(USERS_FILE);
@@ -650,6 +660,38 @@ app.put('/admin/api/models', requireAdminAuth, (req, res) => {
 
   logger.info('Admin updated models', { ip: req.clientIp, count: models.length });
   res.json({ success: true, models: config.models });
+});
+
+// Admin API: 获取系统提示词
+app.get('/admin/api/system-prompts', requireAdminAuth, (req, res) => {
+  res.json({
+    success: true,
+    systemPrompts: config.systemPrompts || { default: '', presets: [] }
+  });
+});
+
+// Admin API: 更新系统提示词
+app.put('/admin/api/system-prompts', requireAdminAuth, (req, res) => {
+  const { systemPrompts } = req.body;
+
+  if (!systemPrompts || typeof systemPrompts !== 'object') {
+    return res.status(400).json({ success: false, error: 'Invalid systemPrompts object' });
+  }
+
+  config.systemPrompts = systemPrompts;
+  saveConfig();
+
+  logger.info('Admin updated system prompts', { ip: req.clientIp });
+  res.json({ success: true, systemPrompts: config.systemPrompts });
+});
+
+// API: 获取系统提示词预设（供前端使用）
+app.get('/api/system-prompts', (req, res) => {
+  const presets = config.systemPrompts?.presets || [];
+  res.json({
+    success: true,
+    presets: presets.map(p => ({ id: p.id, name: p.name, content: p.content }))
+  });
 });
 
 // Initialize and start

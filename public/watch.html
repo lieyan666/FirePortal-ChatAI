@@ -44,6 +44,7 @@
 
     <!-- Menu -->
     <div id="menu" style="display:none;">
+      <button onclick="showSystemPromptSelector()">System Prompt</button>
       <button onclick="deleteCurrentConversation()">Delete Chat</button>
       <button onclick="toggleMenu()">Close</button>
     </div>
@@ -59,6 +60,20 @@
 
     <!-- Loading Indicator -->
     <div id="loading" style="display:none;">Sending...</div>
+
+    <!-- Toast Notification -->
+    <div id="toast" style="display:none;"></div>
+
+    <!-- Confirm Dialog -->
+    <div id="confirm-overlay" style="display:none;">
+      <div id="confirm-dialog">
+        <div id="confirm-message"></div>
+        <div id="confirm-buttons">
+          <button id="confirm-cancel" class="confirm-btn">Cancel</button>
+          <button id="confirm-ok" class="confirm-btn confirm-primary">Delete</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/watch.js"></script>

@@ -353,6 +353,7 @@
     <div class="tabs">
       <button class="tab active" onclick="switchTab('users')">Users</button>
       <button class="tab" onclick="switchTab('models')">Models</button>
+      <button class="tab" onclick="switchTab('prompts')">System Prompts</button>
       <button class="tab" onclick="switchTab('logs')">Logs</button>
     </div>
 
@@ -402,6 +403,22 @@
           <tr><td colspan="4" style="text-align: center; color: #86868b;">Loading...</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- System Prompts Tab -->
+    <div class="tab-content" id="tab-prompts">
+      <h2>Default System Prompt</h2>
+      <textarea id="default-prompt" rows="4" style="width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; font-family: inherit; margin-bottom: 15px;"></textarea>
+
+      <h2>Presets</h2>
+      <div class="actions">
+        <button onclick="addPromptPreset()">+ Add Preset</button>
+        <button onclick="saveSystemPrompts()">Save All</button>
+      </div>
+
+      <div id="prompts-list" style="margin-top: 20px;">
+        <!-- Presets will be rendered here -->
+      </div>
     </div>
 
     <!-- Logs Tab -->
@@ -532,6 +549,8 @@
         loadLogs();
       } else if (tab === 'models') {
         loadModels();
+      } else if (tab === 'prompts') {
+        loadSystemPrompts();
       }
     }
 
@@ -852,6 +871,97 @@
       })
       .catch(err => {
         alert('Error saving models');
+      });
+    }
+
+    // System Prompts Management
+    let systemPromptsData = { default: '', presets: [] };
+
+    function loadSystemPrompts() {
+      apiCall('/admin/api/system-prompts')
+        .then(data => {
+          if (data.success) {
+            systemPromptsData = data.systemPrompts || { default: '', presets: [] };
+            document.getElementById('default-prompt').value = systemPromptsData.default || '';
+            renderPromptPresets();
+          }
+        })
+        .catch(err => console.error('Error loading system prompts:', err));
+    }
+
+    function renderPromptPresets() {
+      const container = document.getElementById('prompts-list');
+      container.innerHTML = '';
+
+      if (!systemPromptsData.presets || systemPromptsData.presets.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #86868b; padding: 40px;">No presets yet</p>';
+        return;
+      }
+
+      systemPromptsData.presets.forEach((preset, index) => {
+        const presetDiv = document.createElement('div');
+        presetDiv.style.cssText = 'background: white; padding: 20px; margin-bottom: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+
+        presetDiv.innerHTML = `
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; color: #86868b; margin-bottom: 5px;">ID</label>
+            <input type="text" value="${preset.id}" onchange="systemPromptsData.presets[${index}].id = this.value"
+              style="width: 100%; padding: 8px; border: 1px solid #d2d2d7; border-radius: 6px; font-size: 14px;">
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; color: #86868b; margin-bottom: 5px;">Name</label>
+            <input type="text" value="${preset.name}" onchange="systemPromptsData.presets[${index}].name = this.value"
+              style="width: 100%; padding: 8px; border: 1px solid #d2d2d7; border-radius: 6px; font-size: 14px;">
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 12px; color: #86868b; margin-bottom: 5px;">Content</label>
+            <textarea rows="3" onchange="systemPromptsData.presets[${index}].content = this.value"
+              style="width: 100%; padding: 8px; border: 1px solid #d2d2d7; border-radius: 6px; font-size: 14px; font-family: inherit;">${preset.content}</textarea>
+          </div>
+          <button onclick="deletePromptPreset(${index})" class="danger-btn" style="background: #ff3b30; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;">Delete</button>
+        `;
+
+        container.appendChild(presetDiv);
+      });
+    }
+
+    function addPromptPreset() {
+      if (!systemPromptsData.presets) {
+        systemPromptsData.presets = [];
+      }
+
+      systemPromptsData.presets.push({
+        id: 'preset-' + Date.now(),
+        name: 'New Preset',
+        content: 'You are a helpful AI assistant.'
+      });
+
+      renderPromptPresets();
+    }
+
+    function deletePromptPreset(index) {
+      if (confirm('Delete this preset?')) {
+        systemPromptsData.presets.splice(index, 1);
+        renderPromptPresets();
+      }
+    }
+
+    function saveSystemPrompts() {
+      systemPromptsData.default = document.getElementById('default-prompt').value;
+
+      apiCall('/admin/api/system-prompts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemPrompts: systemPromptsData })
+      })
+      .then(data => {
+        if (data.success) {
+          alert('System prompts saved successfully');
+          loadSystemPrompts();
+        }
+      })
+      .catch(err => {
+        alert('Error saving system prompts');
       });
     }
 
