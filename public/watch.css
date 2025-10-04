@@ -345,6 +345,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .message.user .message-content {
@@ -355,6 +356,95 @@ body {
 .message.assistant .message-content {
   background: #1C1C1E;
   color: #fff;
+}
+
+/* Markdown 样式 */
+.message-content h1,
+.message-content h2,
+.message-content h3 {
+  margin: 8px 0 6px;
+  font-weight: 600;
+}
+
+.message-content h1 { font-size: 20px; }
+.message-content h2 { font-size: 18px; }
+.message-content h3 { font-size: 16px; }
+
+.message-content strong {
+  font-weight: 600;
+}
+
+.message-content em {
+  font-style: italic;
+}
+
+.message-content code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+}
+
+.message-content pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.message-content pre code {
+  background: transparent;
+  padding: 0;
+  display: block;
+  line-height: 1.4;
+}
+
+.message-content ul,
+.message-content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.message-content li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.message-content blockquote {
+  border-left: 3px solid #0A84FF;
+  padding-left: 12px;
+  margin: 8px 0;
+  color: #86868b;
+  font-style: italic;
+}
+
+.message-content a {
+  color: #0A84FF;
+  text-decoration: none;
+}
+
+.message-content a:active {
+  color: #0066CC;
+}
+
+/* 数学公式样式 */
+.message-content .katex {
+  font-size: 1.1em;
+}
+
+.message-content .math-block {
+  margin: 12px 0;
+  text-align: center;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.message-content .katex-display {
+  margin: 0;
 }
 
 /* 消息元数据（时间和模型） */

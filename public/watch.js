@@ -21,6 +21,93 @@
     return match ? match[1] : null;
   }
 
+  // 轻量级 Markdown 解析器
+  function parseMarkdown(text) {
+    if (!text) return '';
+
+    // 先处理数学公式（在转义 HTML 之前）
+    var mathBlocks = [];
+
+    // 处理块级公式 $$...$$
+    text = text.replace(/\$\$([^\$]+)\$\$/g, function(match, formula) {
+      try {
+        var html = window.katex.renderToString(formula.trim(), {
+          throwOnError: false,
+          displayMode: true
+        });
+        mathBlocks.push('<div class="math-block">' + html + '</div>');
+        return '___MATH_BLOCK_' + (mathBlocks.length - 1) + '___';
+      } catch (e) {
+        return match;
+      }
+    });
+
+    // 处理行内公式 $...$
+    text = text.replace(/\$([^\$]+)\$/g, function(match, formula) {
+      try {
+        var html = window.katex.renderToString(formula.trim(), {
+          throwOnError: false,
+          displayMode: false
+        });
+        mathBlocks.push(html);
+        return '___MATH_BLOCK_' + (mathBlocks.length - 1) + '___';
+      } catch (e) {
+        return match;
+      }
+    });
+
+    // 转义 HTML 特殊字符
+    var escapeHtml = function(str) {
+      return str.replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+    };
+
+    text = escapeHtml(text);
+
+    // 代码块 ```code```
+    text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+
+    // 行内代码 `code`
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // 粗体 **text**
+    text = text.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+
+    // 斜体 *text*
+    text = text.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+
+    // 标题 # H1, ## H2, ### H3
+    text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // 无序列表 - item
+    text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
+    text = text.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+    // 有序列表 1. item
+    text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+    // 引用 > text
+    text = text.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // 链接 [text](url)
+    text = text.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // 换行
+    text = text.replace(/\n/g, '<br>');
+
+    // 恢复数学公式
+    for (var i = 0; i < mathBlocks.length; i++) {
+      text = text.replace('___MATH_BLOCK_' + i + '___', mathBlocks[i]);
+    }
+
+    return text;
+  }
+
   // 创建消息元素
   function createMessageElement(role, content, showRegenerate, chat) {
     var messageDiv = document.createElement('div');
@@ -29,7 +116,13 @@
 
     var contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
-    contentDiv.textContent = content;
+
+    // AI 消息应用 Markdown 渲染
+    if (role === 'assistant') {
+      contentDiv.innerHTML = parseMarkdown(content);
+    } else {
+      contentDiv.textContent = content;
+    }
 
     messageDiv.appendChild(contentDiv);
 
