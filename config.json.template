@@ -10,7 +10,23 @@
   "openai": {
     "apiKey": "your_api_key_here",
     "apiUrl": "https://api.openai.com/v1/chat/completions",
-    "model": "gpt-3.5-turbo",
     "maxTokens": 500
-  }
+  },
+  "models": [
+    {
+      "id": "gemini-flash",
+      "name": "Gemini Flash",
+      "default": true
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "name": "Gemini 2.5 Pro",
+      "default": false
+    },
+    {
+      "id": "gpt-5-mini",
+      "name": "GPT-5 Mini",
+      "default": false
+    }
+  ]
 }

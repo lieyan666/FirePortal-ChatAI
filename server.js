@@ -8,24 +8,6 @@ const Logger = require('./logger');
 const CONFIG_FILE = path.join(__dirname, 'config.json');
 const TEMPLATE_FILE = path.join(__dirname, 'config.json.template');
 
-// Default configuration structure
-const DEFAULT_CONFIG = {
-  port: 3000,
-  admin: {
-    password: 'change_this_password'
-  },
-  logging: {
-    directory: 'logs',
-    retentionDays: 30
-  },
-  openai: {
-    apiKey: '',
-    apiUrl: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-3.5-turbo',
-    maxTokens: 500
-  }
-};
-
 function mergeConfig(userConfig, defaultConfig) {
   const merged = JSON.parse(JSON.stringify(defaultConfig));
 
@@ -55,7 +37,14 @@ function loadConfig() {
   }
 
   const userConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-  const config = mergeConfig(userConfig, DEFAULT_CONFIG);
+
+  // Load default config from template if exists
+  let defaultConfig = {};
+  if (fs.existsSync(TEMPLATE_FILE)) {
+    defaultConfig = JSON.parse(fs.readFileSync(TEMPLATE_FILE, 'utf8'));
+  }
+
+  const config = mergeConfig(userConfig, defaultConfig);
 
   // Save back if any fields were added
   if (JSON.stringify(config) !== JSON.stringify(userConfig)) {
@@ -96,6 +85,7 @@ app.use((req, res, next) => {
 // Database file paths
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const CONVERSATIONS_FILE = path.join(DATA_DIR, 'conversations.json');
 const CHATS_FILE = path.join(DATA_DIR, 'chats.json');
 
 // Initialize database
@@ -105,6 +95,9 @@ function initDB() {
   }
   if (!fs.existsSync(USERS_FILE)) {
     fs.writeFileSync(USERS_FILE, JSON.stringify([], null, 2));
+  }
+  if (!fs.existsSync(CONVERSATIONS_FILE)) {
+    fs.writeFileSync(CONVERSATIONS_FILE, JSON.stringify([], null, 2));
   }
   if (!fs.existsSync(CHATS_FILE)) {
     fs.writeFileSync(CHATS_FILE, JSON.stringify([], null, 2));
@@ -118,6 +111,20 @@ function readJSON(file) {
 
 function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+// Model helpers
+function getDefaultModel() {
+  const defaultModel = config.models.find(m => m.default);
+  return defaultModel || config.models[0];
+}
+
+function getModelById(modelId) {
+  return config.models.find(m => m.id === modelId);
+}
+
+function saveConfig() {
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
 function getUser(uuid) {
@@ -174,6 +181,56 @@ function updateUserActivity(uuid) {
   }
 }
 
+// Conversation management
+function createConversation(uuid, title = 'New Chat') {
+  const conversations = readJSON(CONVERSATIONS_FILE);
+  const conversation = {
+    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    uuid: uuid,
+    title: title,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    deleted: false
+  };
+  conversations.push(conversation);
+  writeJSON(CONVERSATIONS_FILE, conversations);
+  logger.info('Conversation created', { uuid, conversationId: conversation.id });
+  return conversation;
+}
+
+function getUserConversations(uuid, includeDeleted = false) {
+  const conversations = readJSON(CONVERSATIONS_FILE);
+  return conversations
+    .filter(c => c.uuid === uuid && (includeDeleted || !c.deleted))
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+}
+
+function getConversation(conversationId) {
+  const conversations = readJSON(CONVERSATIONS_FILE);
+  return conversations.find(c => c.id === conversationId);
+}
+
+function updateConversation(conversationId, updates) {
+  const conversations = readJSON(CONVERSATIONS_FILE);
+  const conversation = conversations.find(c => c.id === conversationId);
+  if (conversation) {
+    Object.assign(conversation, updates);
+    conversation.updatedAt = new Date().toISOString();
+    writeJSON(CONVERSATIONS_FILE, conversations);
+  }
+}
+
+function softDeleteConversation(conversationId) {
+  const conversations = readJSON(CONVERSATIONS_FILE);
+  const conversation = conversations.find(c => c.id === conversationId);
+  if (conversation) {
+    conversation.deleted = true;
+    conversation.deletedAt = new Date().toISOString();
+    writeJSON(CONVERSATIONS_FILE, conversations);
+    logger.info('Conversation soft deleted', { conversationId });
+  }
+}
+
 function getUserChats(uuid) {
   const chats = readJSON(CHATS_FILE);
   return chats.filter(c => c.uuid === uuid).sort((a, b) =>
@@ -181,17 +238,29 @@ function getUserChats(uuid) {
   );
 }
 
-function addChat(uuid, role, content) {
+function getConversationChats(conversationId) {
+  const chats = readJSON(CHATS_FILE);
+  return chats.filter(c => c.conversationId === conversationId).sort((a, b) =>
+    new Date(a.timestamp) - new Date(b.timestamp)
+  );
+}
+
+function addChat(uuid, conversationId, role, content) {
   const chats = readJSON(CHATS_FILE);
   const chat = {
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
     uuid: uuid,
+    conversationId: conversationId,
     role: role,
     content: content,
     timestamp: new Date().toISOString()
   };
   chats.push(chat);
   writeJSON(CHATS_FILE, chats);
+
+  // Update conversation's updatedAt
+  updateConversation(conversationId, {});
+
   return chat;
 }
 
@@ -217,12 +286,79 @@ app.get('/user/:uuid', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'watch.html'));
 });
 
-// API: 获取聊天历史
+// API: 获取用户的会话列表
+app.get('/api/conversations/:uuid', (req, res) => {
+  const { uuid } = req.params;
+
+  const user = getUser(uuid);
+  if (!user) {
+    return res.status(403).json({ success: false, error: 'Access denied' });
+  }
+
+  const conversations = getUserConversations(uuid);
+  res.json({ success: true, conversations });
+});
+
+// API: 创建新会话
+app.post('/api/conversations/:uuid', (req, res) => {
+  const { uuid } = req.params;
+  const { title } = req.body;
+
+  const user = getUser(uuid);
+  if (!user) {
+    return res.status(403).json({ success: false, error: 'Access denied' });
+  }
+
+  const conversation = createConversation(uuid, title || 'New Chat');
+  res.json({ success: true, conversation });
+});
+
+// API: 更新会话标题
+app.put('/api/conversations/:conversationId', (req, res) => {
+  const { conversationId } = req.params;
+  const { title } = req.body;
+
+  const conversation = getConversation(conversationId);
+  if (!conversation) {
+    return res.status(404).json({ success: false, error: 'Conversation not found' });
+  }
+
+  updateConversation(conversationId, { title });
+  res.json({ success: true });
+});
+
+// API: 软删除会话
+app.delete('/api/conversations/:conversationId', (req, res) => {
+  const { conversationId } = req.params;
+
+  const conversation = getConversation(conversationId);
+  if (!conversation) {
+    return res.status(404).json({ success: false, error: 'Conversation not found' });
+  }
+
+  softDeleteConversation(conversationId);
+  logger.info('User deleted conversation', { conversationId, ip: req.clientIp });
+  res.json({ success: true });
+});
+
+// API: 获取会话的聊天历史
+app.get('/api/conversations/:conversationId/chats', (req, res) => {
+  const { conversationId } = req.params;
+
+  const conversation = getConversation(conversationId);
+  if (!conversation) {
+    return res.status(404).json({ success: false, error: 'Conversation not found' });
+  }
+
+  const chats = getConversationChats(conversationId);
+  res.json({ success: true, chats });
+});
+
+// API: 获取聊天历史 (兼容旧API)
 app.get('/api/chat/:uuid', (req, res) => {
   const { uuid } = req.params;
-  const limit = parseInt(req.query.limit) || 50; // 默认只返回最近50条
+  const limit = parseInt(req.query.limit) || 50;
 
-  // 检查用户是否存在
   const user = getUser(uuid);
   if (!user) {
     logger.warn('Unauthorized chat access', { uuid, ip: req.clientIp });
@@ -236,7 +372,7 @@ app.get('/api/chat/:uuid', (req, res) => {
 // API: 发送消息
 app.post('/api/chat/:uuid', async (req, res) => {
   const { uuid } = req.params;
-  const { message } = req.body;
+  const { message, model, conversationId } = req.body;
 
   if (!message || !message.trim()) {
     return res.status(400).json({ success: false, error: 'Message is required' });
@@ -249,12 +385,33 @@ app.post('/api/chat/:uuid', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
+    // 获取或创建会话
+    let conversation;
+    if (conversationId) {
+      conversation = getConversation(conversationId);
+      if (!conversation || conversation.uuid !== uuid) {
+        return res.status(403).json({ success: false, error: 'Invalid conversation' });
+      }
+      if (conversation.deleted) {
+        return res.status(410).json({ success: false, error: 'Conversation deleted' });
+      }
+    } else {
+      // 如果没有提供会话ID，创建新会话
+      conversation = createConversation(uuid, 'New Chat');
+    }
+
+    // 获取模型
+    const selectedModel = model ? getModelById(model) : getDefaultModel();
+    if (!selectedModel) {
+      return res.status(400).json({ success: false, error: 'Invalid model' });
+    }
+
     // 保存用户消息
-    addChat(uuid, 'user', message);
+    addChat(uuid, conversation.id, 'user', message);
     updateUserActivity(uuid);
 
     // 获取对话历史（最近10条用于上下文）
-    const history = getUserChats(uuid).slice(-10);
+    const history = getConversationChats(conversation.id).slice(-10);
     const messages = history.map(h => ({
       role: h.role,
       content: h.content
@@ -269,7 +426,7 @@ app.post('/api/chat/:uuid', async (req, res) => {
     }
 
     const response = await axios.post(apiUrl, {
-      model: config.openai.model,
+      model: selectedModel.id,
       messages: messages,
       max_tokens: config.openai.maxTokens,
       temperature: 0.7
@@ -283,7 +440,7 @@ app.post('/api/chat/:uuid', async (req, res) => {
     const aiReply = response.data.choices[0].message.content;
 
     // 保存 AI 回复
-    addChat(uuid, 'assistant', aiReply);
+    addChat(uuid, conversation.id, 'assistant', aiReply);
 
     // 更新 token 使用统计
     const users = readJSON(USERS_FILE);
@@ -295,13 +452,15 @@ app.post('/api/chat/:uuid', async (req, res) => {
 
     logger.info('Chat message processed', {
       uuid,
+      conversationId: conversation.id,
       ip: req.clientIp,
       tokens: response.data.usage.total_tokens
     });
 
     res.json({
       success: true,
-      reply: aiReply
+      reply: aiReply,
+      conversationId: conversation.id
     });
 
   } catch (error) {
@@ -332,6 +491,16 @@ app.delete('/api/chat/:uuid/clear', (req, res) => {
 
   logger.info('User cleared chat history', { uuid, ip: req.clientIp });
   res.json({ success: true });
+});
+
+// Get available models
+app.get('/api/models', (req, res) => {
+  const models = config.models.map(m => ({
+    id: m.id,
+    name: m.name,
+    default: m.default || false
+  }));
+  res.json({ success: true, models });
 });
 
 // Admin authentication middleware
@@ -448,6 +617,39 @@ app.get('/admin/api/logs', requireAdminAuth, (req, res) => {
 app.get('/admin/api/logs/files', requireAdminAuth, (req, res) => {
   const files = logger.getLogFiles();
   res.json({ success: true, files });
+});
+
+// Admin API: 获取模型列表
+app.get('/admin/api/models', requireAdminAuth, (req, res) => {
+  res.json({ success: true, models: config.models });
+});
+
+// Admin API: 更新模型列表
+app.put('/admin/api/models', requireAdminAuth, (req, res) => {
+  const { models } = req.body;
+
+  if (!Array.isArray(models) || models.length === 0) {
+    return res.status(400).json({ success: false, error: 'Invalid models array' });
+  }
+
+  // 验证模型格式
+  for (const model of models) {
+    if (!model.id || !model.name) {
+      return res.status(400).json({ success: false, error: 'Each model must have id and name' });
+    }
+  }
+
+  // 确保至少有一个默认模型
+  const hasDefault = models.some(m => m.default);
+  if (!hasDefault && models.length > 0) {
+    models[0].default = true;
+  }
+
+  config.models = models;
+  saveConfig();
+
+  logger.info('Admin updated models', { ip: req.clientIp, count: models.length });
+  res.json({ success: true, models: config.models });
 });
 
 // Initialize and start

@@ -352,6 +352,7 @@
     <!-- Tabs -->
     <div class="tabs">
       <button class="tab active" onclick="switchTab('users')">Users</button>
+      <button class="tab" onclick="switchTab('models')">Models</button>
       <button class="tab" onclick="switchTab('logs')">Logs</button>
     </div>
 
@@ -376,6 +377,29 @@
         </thead>
         <tbody id="users-table">
           <tr><td colspan="7" style="text-align: center; color: #86868b;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Models Tab -->
+    <div class="tab-content" id="tab-models">
+      <div class="actions">
+        <button onclick="addModel()">Add Model</button>
+        <button onclick="loadModels()">Refresh</button>
+        <button onclick="saveModels()">Save Changes</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Model ID</th>
+            <th>Display Name</th>
+            <th>Default</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="models-table">
+          <tr><td colspan="4" style="text-align: center; color: #86868b;">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -506,6 +530,8 @@
 
       if (tab === 'logs') {
         loadLogs();
+      } else if (tab === 'models') {
+        loadModels();
       }
     }
 
@@ -723,6 +749,110 @@
         .catch(err => {
           document.getElementById('logs-container').innerHTML = '<p style="color: red; text-align: center;">Error loading logs</p>';
         });
+    }
+
+    // Load models
+    let modelsData = [];
+
+    function loadModels() {
+      apiCall('/admin/api/models')
+        .then(data => {
+          if (data.success) {
+            modelsData = data.models;
+            renderModels();
+          }
+        })
+        .catch(err => {
+          console.error('Error loading models:', err);
+          document.getElementById('models-table').innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Error loading models</td></tr>';
+        });
+    }
+
+    function renderModels() {
+      const tbody = document.getElementById('models-table');
+      tbody.innerHTML = '';
+
+      if (modelsData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #86868b;">No models configured</td></tr>';
+        return;
+      }
+
+      modelsData.forEach((model, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="text" value="${model.id}" onchange="updateModelField(${index}, 'id', this.value)" style="width: 100%; padding: 4px; border: 1px solid #d2d2d7; border-radius: 4px;"></td>
+          <td><input type="text" value="${model.name}" onchange="updateModelField(${index}, 'name', this.value)" style="width: 100%; padding: 4px; border: 1px solid #d2d2d7; border-radius: 4px;"></td>
+          <td><input type="checkbox" ${model.default ? 'checked' : ''} onchange="setDefaultModel(${index})"></td>
+          <td>
+            <button class="danger" onclick="deleteModel(${index})">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateModelField(index, field, value) {
+      modelsData[index][field] = value;
+    }
+
+    function setDefaultModel(index) {
+      modelsData.forEach((m, i) => {
+        m.default = (i === index);
+      });
+      renderModels();
+    }
+
+    function addModel() {
+      modelsData.push({
+        id: 'new-model-id',
+        name: 'New Model',
+        default: modelsData.length === 0
+      });
+      renderModels();
+    }
+
+    function deleteModel(index) {
+      if (!confirm('Delete this model?')) return;
+
+      const wasDefault = modelsData[index].default;
+      modelsData.splice(index, 1);
+
+      // If deleted model was default, set first model as default
+      if (wasDefault && modelsData.length > 0) {
+        modelsData[0].default = true;
+      }
+
+      renderModels();
+    }
+
+    function saveModels() {
+      if (modelsData.length === 0) {
+        alert('At least one model is required');
+        return;
+      }
+
+      // Validate
+      for (const model of modelsData) {
+        if (!model.id || !model.name) {
+          alert('All models must have ID and Name');
+          return;
+        }
+      }
+
+      apiCall('/admin/api/models', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ models: modelsData })
+      })
+      .then(data => {
+        if (data.success) {
+          alert('Models saved successfully');
+          loadModels();
+        }
+      })
+      .catch(err => {
+        alert('Error saving models');
+      });
     }
 
     // Copy link

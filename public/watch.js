@@ -6,6 +6,10 @@
   // 全局状态
   var isLoading = false;
   var userUUID = null;
+  var models = [];
+  var selectedModel = null;
+  var conversations = [];
+  var currentConversation = null;
 
   // 从 URL 获取 UUID
   function getUserUUID() {
@@ -96,6 +100,106 @@
     xhr.send();
   }
 
+  // 加载模型列表
+  function loadModels() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/models', true);
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success && response.models) {
+            models = response.models;
+
+            // 设置默认模型
+            var defaultModel = null;
+            for (var i = 0; i < models.length; i++) {
+              if (models[i].default) {
+                defaultModel = models[i];
+                break;
+              }
+            }
+            selectedModel = defaultModel || models[0];
+
+            // 更新显示
+            updateModelDisplay();
+            renderModelList();
+          }
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      console.error('Failed to load models');
+    };
+
+    xhr.send();
+  }
+
+  // 更新模型显示
+  function updateModelDisplay() {
+    var modelNameEl = document.getElementById('model-name');
+    if (selectedModel) {
+      modelNameEl.textContent = selectedModel.name;
+    }
+  }
+
+  // 渲染模型列表
+  function renderModelList() {
+    var listEl = document.getElementById('model-list');
+    listEl.innerHTML = '';
+
+    for (var i = 0; i < models.length; i++) {
+      var model = models[i];
+      var button = document.createElement('button');
+      button.className = 'model-item';
+      button.textContent = model.name;
+      button.setAttribute('data-model-id', model.id);
+
+      if (selectedModel && model.id === selectedModel.id) {
+        button.className += ' active';
+      }
+
+      // 使用闭包保存 model
+      (function(m) {
+        if (button.addEventListener) {
+          button.addEventListener('click', function() {
+            selectModel(m);
+          });
+        } else if (button.attachEvent) {
+          button.attachEvent('onclick', function() {
+            selectModel(m);
+          });
+        }
+      })(model);
+
+      listEl.appendChild(button);
+    }
+  }
+
+  // 选择模型
+  function selectModel(model) {
+    selectedModel = model;
+    updateModelDisplay();
+    renderModelList();
+    toggleModelSelector();
+  }
+
+  // 切换模型选择器
+  function toggleModelSelector() {
+    var selector = document.getElementById('model-selector');
+    var menu = document.getElementById('menu');
+
+    // 关闭菜单
+    menu.style.display = 'none';
+
+    var isVisible = selector.style.display === 'block';
+    selector.style.display = isVisible ? 'none' : 'block';
+  }
+
   // 发送消息
   function sendMessage() {
     if (isLoading) return;
@@ -146,7 +250,10 @@
       showError('Network error');
     };
 
-    xhr.send(JSON.stringify({ message: message }));
+    xhr.send(JSON.stringify({
+      message: message,
+      model: selectedModel ? selectedModel.id : null
+    }));
   }
 
   // 清空聊天记录
@@ -180,6 +287,11 @@
   // 切换菜单
   function toggleMenu() {
     var menu = document.getElementById('menu');
+    var selector = document.getElementById('model-selector');
+
+    // 关闭模型选择器
+    selector.style.display = 'none';
+
     var isVisible = menu.style.display === 'block';
     menu.style.display = isVisible ? 'none' : 'block';
   }
@@ -224,13 +336,15 @@
       sendBtn.attachEvent('onclick', sendMessage);
     }
 
-    // 加载历史消息
+    // 加载历史消息和模型列表
     loadHistory();
+    loadModels();
   }
 
   // 暴露全局函数供 HTML 使用
   window.toggleMenu = toggleMenu;
   window.clearChatConfirm = clearChatConfirm;
+  window.toggleModelSelector = toggleModelSelector;
 
   // 页面加载完成后初始化
   if (document.readyState === 'complete') {

@@ -10,13 +10,31 @@
   <div id="app">
     <!-- Header with menu button -->
     <div id="header">
-      <span id="title">AI Chat</span>
+      <button id="conv-btn" onclick="toggleConversations()">☰</button>
+      <div id="title-section">
+        <span id="title">FireAI</span>
+        <span id="model-name" onclick="toggleModelSelector()">...</span>
+      </div>
       <button id="menu-btn" onclick="toggleMenu()">⋯</button>
+    </div>
+
+    <!-- Conversations Sidebar -->
+    <div id="conversations-sidebar" style="display:none;">
+      <div id="conv-header">
+        <span>Conversations</span>
+        <button onclick="createNewConversation()">+</button>
+      </div>
+      <div id="conv-list"></div>
+    </div>
+
+    <!-- Model Selector -->
+    <div id="model-selector" style="display:none;">
+      <div id="model-list"></div>
     </div>
 
     <!-- Menu -->
     <div id="menu" style="display:none;">
-      <button onclick="clearChatConfirm()">Clear Chat</button>
+      <button onclick="deleteCurrentConversation()">Delete Chat</button>
       <button onclick="toggleMenu()">Close</button>
     </div>
 
