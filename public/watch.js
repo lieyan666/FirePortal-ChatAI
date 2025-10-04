@@ -885,7 +885,10 @@
     if (isLoading) return;
 
     var inputEl = document.getElementById('input');
-    var message = messageToSend || inputEl.value.trim();
+    // 确保 messageToSend 是字符串类型，防止事件对象被传入
+    var message = (typeof messageToSend === 'string' && messageToSend)
+                  ? messageToSend
+                  : inputEl.value.trim();
 
     if (!message) return;
 
@@ -1042,9 +1045,13 @@
     // 绑定发送按钮点击事件
     var sendBtn = document.getElementById('send');
     if (sendBtn.addEventListener) {
-      sendBtn.addEventListener('click', sendMessage);
+      sendBtn.addEventListener('click', function() {
+        sendMessage();
+      });
     } else if (sendBtn.attachEvent) {
-      sendBtn.attachEvent('onclick', sendMessage);
+      sendBtn.attachEvent('onclick', function() {
+        sendMessage();
+      });
     }
 
     // 绑定确认对话框按钮
