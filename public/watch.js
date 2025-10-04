@@ -82,9 +82,15 @@
             conversations = response.conversations;
             renderConversations();
 
-            // 如果没有当前会话，选择第一个或创建新的
-            if (!currentConversation && conversations.length > 0) {
-              switchConversation(conversations[0]);
+            // 如果没有当前会话
+            if (!currentConversation) {
+              if (conversations.length > 0) {
+                // 选择第一个会话
+                switchConversation(conversations[0]);
+              } else {
+                // 如果没有任何会话，自动创建一个
+                createNewConversation();
+              }
             }
           }
         } catch (e) {
