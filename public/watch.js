@@ -1,4 +1,4 @@
-/* ES5 兼容的 Apple Watch Chat 客户端 */
+/* ES5 兼容的 Apple Watch Chat 客户端 - 带会话管理 */
 
 (function() {
   'use strict';
@@ -69,10 +69,115 @@
     inputEl.disabled = loading;
   }
 
-  // 加载聊天历史
-  function loadHistory() {
+  // 加载会话列表
+  function loadConversations() {
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/chat/' + userUUID + '?limit=30', true);
+    xhr.open('GET', '/api/conversations/' + userUUID, true);
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success && response.conversations) {
+            conversations = response.conversations;
+            renderConversations();
+
+            // 如果没有当前会话，选择第一个或创建新的
+            if (!currentConversation && conversations.length > 0) {
+              switchConversation(conversations[0]);
+            }
+          }
+        } catch (e) {
+          console.error('Parse error:', e);
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      console.error('Failed to load conversations');
+    };
+
+    xhr.send();
+  }
+
+  // 渲染会话列表
+  function renderConversations() {
+    var listEl = document.getElementById('conv-list');
+    listEl.innerHTML = '';
+
+    if (conversations.length === 0) {
+      var emptyDiv = document.createElement('div');
+      emptyDiv.style.padding = '20px';
+      emptyDiv.style.textAlign = 'center';
+      emptyDiv.style.color = '#86868b';
+      emptyDiv.textContent = 'No conversations';
+      listEl.appendChild(emptyDiv);
+      return;
+    }
+
+    for (var i = 0; i < conversations.length; i++) {
+      var conv = conversations[i];
+      var button = document.createElement('button');
+      button.className = 'conv-item';
+
+      if (currentConversation && conv.id === currentConversation.id) {
+        button.className += ' active';
+      }
+
+      var titleDiv = document.createElement('div');
+      titleDiv.className = 'conv-item-title';
+      titleDiv.textContent = conv.title || 'New Chat';
+
+      var timeDiv = document.createElement('div');
+      timeDiv.className = 'conv-item-time';
+      timeDiv.textContent = formatTime(conv.updatedAt);
+
+      button.appendChild(titleDiv);
+      button.appendChild(timeDiv);
+
+      // 使用闭包保存 conv
+      (function(c) {
+        if (button.addEventListener) {
+          button.addEventListener('click', function() {
+            switchConversation(c);
+          });
+        } else if (button.attachEvent) {
+          button.attachEvent('onclick', function() {
+            switchConversation(c);
+          });
+        }
+      })(conv);
+
+      listEl.appendChild(button);
+    }
+  }
+
+  // 格式化时间
+  function formatTime(timestamp) {
+    var date = new Date(timestamp);
+    var now = new Date();
+    var diff = now - date;
+
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return Math.floor(diff / 86400000) + 'd ago';
+  }
+
+  // 切换会话
+  function switchConversation(conversation) {
+    currentConversation = conversation;
+    renderConversations();
+    loadConversationChats();
+    toggleConversations(); // 关闭侧边栏
+  }
+
+  // 加载会话的聊天记录
+  function loadConversationChats() {
+    if (!currentConversation) return;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/conversations/' + currentConversation.id + '/chats', true);
 
     xhr.onload = function() {
       if (xhr.status === 200) {
@@ -94,10 +199,92 @@
     };
 
     xhr.onerror = function() {
-      showError('Failed to load history');
+      showError('Failed to load chat history');
     };
 
     xhr.send();
+  }
+
+  // 创建新会话
+  function createNewConversation() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/conversations/' + userUUID, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success && response.conversation) {
+            conversations.unshift(response.conversation);
+            switchConversation(response.conversation);
+          }
+        } catch (e) {
+          showError('Failed to create conversation');
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      showError('Network error');
+    };
+
+    xhr.send(JSON.stringify({ title: 'New Chat' }));
+  }
+
+  // 删除当前会话
+  function deleteCurrentConversation() {
+    if (!currentConversation) {
+      showError('No active conversation');
+      return;
+    }
+
+    if (!confirm('Delete this conversation?')) return;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('DELETE', '/api/conversations/' + currentConversation.id, true);
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        // 从列表中移除
+        conversations = conversations.filter(function(c) {
+          return c.id !== currentConversation.id;
+        });
+
+        currentConversation = null;
+        renderConversations();
+        document.getElementById('messages').innerHTML = '';
+
+        // 选择第一个会话或创建新的
+        if (conversations.length > 0) {
+          switchConversation(conversations[0]);
+        } else {
+          createNewConversation();
+        }
+
+        toggleMenu();
+      }
+    };
+
+    xhr.onerror = function() {
+      showError('Failed to delete conversation');
+    };
+
+    xhr.send();
+  }
+
+  // 切换会话侧边栏
+  function toggleConversations() {
+    var sidebar = document.getElementById('conversations-sidebar');
+    var menu = document.getElementById('menu');
+    var selector = document.getElementById('model-selector');
+
+    // 关闭其他面板
+    menu.style.display = 'none';
+    selector.style.display = 'none';
+
+    var isVisible = sidebar.style.display === 'flex' || sidebar.style.display === 'block';
+    sidebar.style.display = isVisible ? 'none' : 'flex';
   }
 
   // 加载模型列表
@@ -157,7 +344,6 @@
       var button = document.createElement('button');
       button.className = 'model-item';
       button.textContent = model.name;
-      button.setAttribute('data-model-id', model.id);
 
       if (selectedModel && model.id === selectedModel.id) {
         button.className += ' active';
@@ -192,9 +378,11 @@
   function toggleModelSelector() {
     var selector = document.getElementById('model-selector');
     var menu = document.getElementById('menu');
+    var sidebar = document.getElementById('conversations-sidebar');
 
-    // 关闭菜单
+    // 关闭其他面板
     menu.style.display = 'none';
+    sidebar.style.display = 'none';
 
     var isVisible = selector.style.display === 'block';
     selector.style.display = isVisible ? 'none' : 'block';
@@ -229,6 +417,11 @@
           var response = JSON.parse(xhr.responseText);
           if (response.success && response.reply) {
             addMessage('assistant', response.reply);
+
+            // 如果返回了新的会话ID，更新当前会话
+            if (response.conversationId && (!currentConversation || currentConversation.id !== response.conversationId)) {
+              loadConversations(); // 重新加载会话列表
+            }
           } else {
             showError(response.error || 'Unknown error');
           }
@@ -252,56 +445,23 @@
 
     xhr.send(JSON.stringify({
       message: message,
-      model: selectedModel ? selectedModel.id : null
+      model: selectedModel ? selectedModel.id : null,
+      conversationId: currentConversation ? currentConversation.id : null
     }));
-  }
-
-  // 清空聊天记录
-  function clearChat() {
-    var xhr = new XMLHttpRequest();
-    xhr.open('DELETE', '/api/chat/' + userUUID + '/clear', true);
-
-    xhr.onload = function() {
-      if (xhr.status === 200) {
-        try {
-          var response = JSON.parse(xhr.responseText);
-          if (response.success) {
-            var messagesContainer = document.getElementById('messages');
-            messagesContainer.innerHTML = '';
-          }
-        } catch (e) {
-          showError('Clear failed');
-        }
-      } else {
-        showError('Clear failed');
-      }
-    };
-
-    xhr.onerror = function() {
-      showError('Network error');
-    };
-
-    xhr.send();
   }
 
   // 切换菜单
   function toggleMenu() {
     var menu = document.getElementById('menu');
     var selector = document.getElementById('model-selector');
+    var sidebar = document.getElementById('conversations-sidebar');
 
-    // 关闭模型选择器
+    // 关闭其他面板
     selector.style.display = 'none';
+    sidebar.style.display = 'none';
 
     var isVisible = menu.style.display === 'block';
     menu.style.display = isVisible ? 'none' : 'block';
-  }
-
-  // 确认清空聊天
-  function clearChatConfirm() {
-    if (confirm('Clear all chat history?')) {
-      clearChat();
-      toggleMenu();
-    }
   }
 
   // 回车发送
@@ -336,15 +496,17 @@
       sendBtn.attachEvent('onclick', sendMessage);
     }
 
-    // 加载历史消息和模型列表
-    loadHistory();
+    // 加载数据
     loadModels();
+    loadConversations();
   }
 
   // 暴露全局函数供 HTML 使用
   window.toggleMenu = toggleMenu;
-  window.clearChatConfirm = clearChatConfirm;
   window.toggleModelSelector = toggleModelSelector;
+  window.toggleConversations = toggleConversations;
+  window.createNewConversation = createNewConversation;
+  window.deleteCurrentConversation = deleteCurrentConversation;
 
   // 页面加载完成后初始化
   if (document.readyState === 'complete') {
