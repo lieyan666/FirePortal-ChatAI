@@ -19,7 +19,7 @@
   }
 
   // 创建消息元素
-  function createMessageElement(role, content) {
+  function createMessageElement(role, content, showRegenerate) {
     var messageDiv = document.createElement('div');
     messageDiv.className = 'message ' + role;
 
@@ -28,13 +28,25 @@
     contentDiv.textContent = content;
 
     messageDiv.appendChild(contentDiv);
+
+    // 如果是 AI 消息且需要显示重新生成按钮
+    if (role === 'assistant' && showRegenerate) {
+      var regenBtn = document.createElement('button');
+      regenBtn.className = 'regenerate-btn';
+      regenBtn.textContent = '↻ Regenerate';
+      regenBtn.onclick = function() {
+        regenerateLastResponse();
+      };
+      messageDiv.appendChild(regenBtn);
+    }
+
     return messageDiv;
   }
 
   // 添加消息到界面
-  function addMessage(role, content) {
+  function addMessage(role, content, showRegenerate) {
     var messagesContainer = document.getElementById('messages');
-    var messageEl = createMessageElement(role, content);
+    var messageEl = createMessageElement(role, content, showRegenerate);
     messagesContainer.appendChild(messageEl);
 
     // 滚动到底部
@@ -85,11 +97,11 @@
             // 如果没有当前会话
             if (!currentConversation) {
               if (conversations.length > 0) {
-                // 选择第一个会话
-                switchConversation(conversations[0]);
+                // 选择第一个会话，但不自动关闭侧边栏
+                switchConversation(conversations[0], false);
               } else {
-                // 如果没有任何会话，自动创建一个
-                createNewConversation();
+                // 如果没有任何会话，自动创建一个（不自动关闭侧边栏）
+                createNewConversation(false);
               }
             }
           }
@@ -123,12 +135,15 @@
 
     for (var i = 0; i < conversations.length; i++) {
       var conv = conversations[i];
-      var button = document.createElement('button');
-      button.className = 'conv-item';
+      var item = document.createElement('div');
+      item.className = 'conv-item';
 
       if (currentConversation && conv.id === currentConversation.id) {
-        button.className += ' active';
+        item.className += ' active';
       }
+
+      var button = document.createElement('button');
+      button.className = 'conv-item-main';
 
       var titleDiv = document.createElement('div');
       titleDiv.className = 'conv-item-title';
@@ -141,8 +156,17 @@
       button.appendChild(titleDiv);
       button.appendChild(timeDiv);
 
+      // 删除按钮
+      var deleteBtn = document.createElement('button');
+      deleteBtn.className = 'conv-item-delete';
+      deleteBtn.textContent = '×';
+
+      item.appendChild(button);
+      item.appendChild(deleteBtn);
+
       // 使用闭包保存 conv
       (function(c) {
+        // 点击会话主体切换会话
         if (button.addEventListener) {
           button.addEventListener('click', function() {
             switchConversation(c);
@@ -152,9 +176,24 @@
             switchConversation(c);
           });
         }
+
+        // 点击删除按钮删除会话
+        if (deleteBtn.addEventListener) {
+          deleteBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            deleteConversation(c.id);
+          });
+        } else if (deleteBtn.attachEvent) {
+          deleteBtn.attachEvent('onclick', function(e) {
+            e = e || window.event;
+            if (e.stopPropagation) e.stopPropagation();
+            e.cancelBubble = true;
+            deleteConversation(c.id);
+          });
+        }
       })(conv);
 
-      listEl.appendChild(button);
+      listEl.appendChild(item);
     }
   }
 
@@ -171,11 +210,15 @@
   }
 
   // 切换会话
-  function switchConversation(conversation) {
+  function switchConversation(conversation, autoClose) {
     currentConversation = conversation;
     renderConversations();
     loadConversationChats();
-    toggleConversations(); // 关闭侧边栏
+
+    // 只有手动切换时才关闭侧边栏（autoClose !== false）
+    if (autoClose !== false) {
+      toggleConversations();
+    }
   }
 
   // 加载会话的聊天记录
@@ -195,7 +238,9 @@
 
             for (var i = 0; i < response.chats.length; i++) {
               var chat = response.chats[i];
-              addMessage(chat.role, chat.content);
+              // 只在最后一条 AI 消息上显示重新生成按钮
+              var isLastAssistant = (i === response.chats.length - 1 && chat.role === 'assistant');
+              addMessage(chat.role, chat.content, isLastAssistant);
             }
           }
         } catch (e) {
@@ -212,7 +257,7 @@
   }
 
   // 创建新会话
-  function createNewConversation() {
+  function createNewConversation(autoClose) {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/conversations/' + userUUID, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
@@ -223,7 +268,7 @@
           var response = JSON.parse(xhr.responseText);
           if (response.success && response.conversation) {
             conversations.unshift(response.conversation);
-            switchConversation(response.conversation);
+            switchConversation(response.conversation, autoClose);
           }
         } catch (e) {
           showError('Failed to create conversation');
@@ -238,37 +283,34 @@
     xhr.send(JSON.stringify({ title: 'New Chat' }));
   }
 
-  // 删除当前会话
-  function deleteCurrentConversation() {
-    if (!currentConversation) {
-      showError('No active conversation');
-      return;
-    }
-
+  // 删除会话（通用方法）
+  function deleteConversation(conversationId) {
     if (!confirm('Delete this conversation?')) return;
 
     var xhr = new XMLHttpRequest();
-    xhr.open('DELETE', '/api/conversations/' + currentConversation.id, true);
+    xhr.open('DELETE', '/api/conversations/' + conversationId, true);
 
     xhr.onload = function() {
       if (xhr.status === 200) {
         // 从列表中移除
         conversations = conversations.filter(function(c) {
-          return c.id !== currentConversation.id;
+          return c.id !== conversationId;
         });
 
-        currentConversation = null;
-        renderConversations();
-        document.getElementById('messages').innerHTML = '';
+        // 如果删除的是当前会话，需要切换
+        if (currentConversation && currentConversation.id === conversationId) {
+          currentConversation = null;
+          document.getElementById('messages').innerHTML = '';
 
-        // 选择第一个会话或创建新的
-        if (conversations.length > 0) {
-          switchConversation(conversations[0]);
-        } else {
-          createNewConversation();
+          // 选择第一个会话或创建新的
+          if (conversations.length > 0) {
+            switchConversation(conversations[0], false);
+          } else {
+            createNewConversation(false);
+          }
         }
 
-        toggleMenu();
+        renderConversations();
       }
     };
 
@@ -277,6 +319,17 @@
     };
 
     xhr.send();
+  }
+
+  // 删除当前会话（从菜单调用）
+  function deleteCurrentConversation() {
+    if (!currentConversation) {
+      showError('No active conversation');
+      return;
+    }
+
+    deleteConversation(currentConversation.id);
+    toggleMenu();
   }
 
   // 切换会话侧边栏
@@ -395,17 +448,19 @@
   }
 
   // 发送消息
-  function sendMessage() {
+  function sendMessage(messageToSend, isRegenerate) {
     if (isLoading) return;
 
     var inputEl = document.getElementById('input');
-    var message = inputEl.value.trim();
+    var message = messageToSend || inputEl.value.trim();
 
     if (!message) return;
 
-    // 添加用户消息到界面
-    addMessage('user', message);
-    inputEl.value = '';
+    // 如果不是重新生成，添加用户消息到界面
+    if (!isRegenerate) {
+      addMessage('user', message);
+      inputEl.value = '';
+    }
 
     // 设置加载状态
     setLoading(true);
@@ -422,7 +477,20 @@
         try {
           var response = JSON.parse(xhr.responseText);
           if (response.success && response.reply) {
-            addMessage('assistant', response.reply);
+            // 如果是重新生成，移除最后一条 AI 消息
+            if (isRegenerate) {
+              var messagesContainer = document.getElementById('messages');
+              var messages = messagesContainer.getElementsByClassName('message');
+              for (var i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].classList.contains('assistant')) {
+                  messagesContainer.removeChild(messages[i]);
+                  break;
+                }
+              }
+            }
+
+            // 添加新的 AI 回复，显示重新生成按钮
+            addMessage('assistant', response.reply, true);
 
             // 如果返回了新的会话ID，更新当前会话
             if (response.conversationId && (!currentConversation || currentConversation.id !== response.conversationId)) {
@@ -454,6 +522,30 @@
       model: selectedModel ? selectedModel.id : null,
       conversationId: currentConversation ? currentConversation.id : null
     }));
+  }
+
+  // 重新生成最后的回复
+  function regenerateLastResponse() {
+    if (isLoading || !currentConversation) return;
+
+    // 获取最后一条用户消息
+    var messagesContainer = document.getElementById('messages');
+    var messages = messagesContainer.getElementsByClassName('message');
+    var lastUserMessage = null;
+
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].classList.contains('user')) {
+        var contentDiv = messages[i].querySelector('.message-content');
+        if (contentDiv) {
+          lastUserMessage = contentDiv.textContent;
+          break;
+        }
+      }
+    }
+
+    if (lastUserMessage) {
+      sendMessage(lastUserMessage, true);
+    }
   }
 
   // 切换菜单

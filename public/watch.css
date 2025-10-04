@@ -127,23 +127,33 @@ body {
 }
 
 .conv-item {
-  padding: 10px 12px;
+  display: flex;
   border-bottom: 1px solid #333;
-  cursor: pointer;
   background: transparent;
-  color: #fff;
-  text-align: left;
-  width: 100%;
-  border: none;
-  display: block;
-}
-
-.conv-item:active {
-  background: #2C2C2E;
+  position: relative;
 }
 
 .conv-item.active {
   background: #0A84FF;
+}
+
+.conv-item-main {
+  flex: 1;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  border: none;
+  display: block;
+}
+
+.conv-item-main:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.conv-item.active .conv-item-main {
+  background: transparent;
 }
 
 .conv-item-title {
@@ -157,6 +167,25 @@ body {
 .conv-item-time {
   font-size: 11px;
   color: #86868b;
+}
+
+.conv-item-delete {
+  width: 40px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: #FF453A;
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conv-item-delete:active {
+  background: rgba(255, 69, 58, 0.2);
 }
 
 /* Model Selector */
@@ -355,4 +384,22 @@ body {
   border-radius: 12px;
   font-size: 12px;
   z-index: 1000;
+}
+
+/* 重新生成按钮 */
+.regenerate-btn {
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: #2C2C2E;
+  border: 1px solid #0A84FF;
+  border-radius: 10px;
+  color: #0A84FF;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.regenerate-btn:active {
+  background: #0A84FF;
+  color: #fff;
 }
