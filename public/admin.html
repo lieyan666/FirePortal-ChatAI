@@ -476,6 +476,34 @@
     </div>
   </div>
 
+  <!-- Conversations Modal -->
+  <div class="modal" id="conversations-modal">
+    <div class="modal-content" style="max-width: 800px;">
+      <div class="modal-header">
+        User Conversations
+        <button class="secondary" style="float: right;" onclick="closeModal('conversations-modal')">Close</button>
+      </div>
+      <div id="conversations-content">
+        <table style="margin-top: 20px;">
+          <thead>
+            <tr>
+              <th>Conversation ID</th>
+              <th>Title</th>
+              <th>Messages</th>
+              <th>Created</th>
+              <th>Updated</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="conversations-table">
+            <tr><td colspan="7" style="text-align: center; color: #86868b;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <script>
     let authToken = localStorage.getItem('adminToken');
 
@@ -599,6 +627,7 @@
                 <td>${user.messageCount}</td>
                 <td>${(user.tokenUsage || 0).toLocaleString()}</td>
                 <td>
+                  <button onclick="viewConversations('${user.uuid}')">Conversations</button>
                   <button onclick="viewChats('${user.uuid}')">Chats</button>
                   <button onclick="editNotes('${user.uuid}', '${(user.notes || '').replace(/'/g, "\\'")}')">Edit Notes</button>
                   <button onclick="copyLink('${url}')">Copy Link</button>
@@ -716,6 +745,101 @@
         })
         .catch(err => {
           alert('Error loading chats');
+        });
+    }
+
+    // View conversations
+    function viewConversations(uuid) {
+      apiCall(`/admin/api/user/${uuid}/conversations`)
+        .then(data => {
+          if (data.success) {
+            const tbody = document.getElementById('conversations-table');
+            tbody.innerHTML = '';
+
+            if (data.conversations.length === 0) {
+              tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #86868b;">No conversations yet</td></tr>';
+            } else {
+              data.conversations.forEach(conv => {
+                const tr = document.createElement('tr');
+                const statusBadge = conv.deleted
+                  ? '<span style="background: #ff3b30; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;">Deleted</span>'
+                  : '<span style="background: #34c759; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;">Active</span>';
+
+                tr.innerHTML = `
+                  <td style="font-family: monospace; font-size: 12px;">${conv.id.substring(0, 12)}...</td>
+                  <td>${conv.title || 'New Chat'}</td>
+                  <td>${conv.messageCount || 0}</td>
+                  <td>${new Date(conv.createdAt).toLocaleString()}</td>
+                  <td>${new Date(conv.updatedAt).toLocaleString()}</td>
+                  <td>${statusBadge}</td>
+                  <td>
+                    <button onclick="viewConversationChats('${conv.id}')">View Chats</button>
+                    ${conv.deleted ? `<button onclick="restoreConversation('${conv.id}', '${uuid}')">Restore</button>` : ''}
+                  </td>
+                `;
+                tbody.appendChild(tr);
+              });
+            }
+
+            const modal = document.getElementById('conversations-modal');
+            modal.setAttribute('data-uuid', uuid);
+            modal.classList.add('active');
+          }
+        })
+        .catch(err => {
+          alert('Error loading conversations');
+        });
+    }
+
+    // View conversation chats
+    function viewConversationChats(conversationId) {
+      apiCall(`/api/conversations/${conversationId}/chats`)
+        .then(data => {
+          if (data.success) {
+            const content = document.getElementById('chat-content');
+            content.innerHTML = '';
+
+            if (data.chats.length === 0) {
+              content.innerHTML = '<p style="color: #86868b;">No chats in this conversation</p>';
+            } else {
+              data.chats.forEach(chat => {
+                const div = document.createElement('div');
+                div.className = 'chat-message ' + chat.role;
+                div.innerHTML = `
+                  <div class="chat-role">${chat.role}</div>
+                  <div class="chat-content">${chat.content}</div>
+                  <div style="font-size: 11px; color: #86868b; margin-top: 5px;">
+                    ${new Date(chat.timestamp).toLocaleString()}
+                    ${chat.modelId ? ` • Model: ${chat.modelId}` : ''}
+                  </div>
+                `;
+                content.appendChild(div);
+              });
+            }
+
+            // Close conversations modal and open chat modal
+            closeModal('conversations-modal');
+            document.getElementById('chat-modal').classList.add('active');
+          }
+        })
+        .catch(err => {
+          alert('Error loading conversation chats');
+        });
+    }
+
+    // Restore conversation
+    function restoreConversation(conversationId, uuid) {
+      if (!confirm('Restore this conversation?')) return;
+
+      apiCall(`/admin/api/conversations/${conversationId}/restore`, { method: 'POST' })
+        .then(data => {
+          if (data.success) {
+            // Refresh the conversations list
+            viewConversations(uuid);
+          }
+        })
+        .catch(err => {
+          alert('Error restoring conversation');
         });
     }
 

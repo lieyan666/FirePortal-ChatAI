@@ -231,6 +231,17 @@ function softDeleteConversation(conversationId) {
   }
 }
 
+function restoreConversation(conversationId) {
+  const conversations = readJSON(CONVERSATIONS_FILE);
+  const conversation = conversations.find(c => c.id === conversationId);
+  if (conversation) {
+    conversation.deleted = false;
+    delete conversation.deletedAt;
+    writeJSON(CONVERSATIONS_FILE, conversations);
+    logger.info('Conversation restored', { conversationId });
+  }
+}
+
 function getUserChats(uuid) {
   const chats = readJSON(CHATS_FILE);
   return chats.filter(c => c.uuid === uuid).sort((a, b) =>
@@ -342,6 +353,20 @@ app.delete('/api/conversations/:conversationId', (req, res) => {
   res.json({ success: true });
 });
 
+// Admin API: 恢复已删除的会话
+app.post('/admin/api/conversations/:conversationId/restore', requireAdminAuth, (req, res) => {
+  const { conversationId } = req.params;
+
+  const conversation = getConversation(conversationId);
+  if (!conversation) {
+    return res.status(404).json({ success: false, error: 'Conversation not found' });
+  }
+
+  restoreConversation(conversationId);
+  logger.info('Admin restored conversation', { conversationId, ip: req.clientIp });
+  res.json({ success: true });
+});
+
 // API: 获取会话的聊天历史
 app.get('/api/conversations/:conversationId/chats', (req, res) => {
   const { conversationId } = req.params;
@@ -375,7 +400,7 @@ app.post('/api/chat/:uuid', async (req, res) => {
   const { uuid } = req.params;
   const { message, model, conversationId, systemPrompt } = req.body;
 
-  if (!message || !message.trim()) {
+  if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ success: false, error: 'Message is required' });
   }
 
@@ -580,6 +605,23 @@ app.put('/admin/api/user/:uuid/notes', requireAdminAuth, (req, res) => {
   updateUserNotes(uuid, notes);
   logger.info('Admin updated user notes', { uuid, ip: req.clientIp });
   res.json({ success: true });
+});
+
+// Admin API: 获取用户的会话列表
+app.get('/admin/api/user/:uuid/conversations', requireAdminAuth, (req, res) => {
+  const { uuid } = req.params;
+  const conversations = getUserConversations(uuid, true); // 包含已删除的
+
+  // 为每个会话添加消息数量
+  const conversationsWithCount = conversations.map(conv => {
+    const chats = getConversationChats(conv.id);
+    return {
+      ...conv,
+      messageCount: chats.length
+    };
+  });
+
+  res.json({ success: true, conversations: conversationsWithCount });
 });
 
 // Admin API: 获取用户对话
