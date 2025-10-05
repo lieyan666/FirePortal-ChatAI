@@ -893,7 +893,7 @@
     if (!message) return;
 
     var useModelId = forceModelId || (selectedModel ? selectedModel.id : null);
-    var useSystemPrompt = selectedSystemPrompt ? selectedSystemPrompt.content : null;
+    var useSystemPromptId = selectedSystemPrompt ? selectedSystemPrompt.id : null;
 
     // 如果不是重新生成，添加用户消息到界面
     if (!isRegenerate) {
@@ -964,7 +964,7 @@
       message: message,
       model: useModelId,
       conversationId: currentConversation ? currentConversation.id : null,
-      systemPrompt: useSystemPrompt
+      systemPromptId: useSystemPromptId
     }));
   }
 

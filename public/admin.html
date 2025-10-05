@@ -408,9 +408,17 @@
     <!-- System Prompts Tab -->
     <div class="tab-content" id="tab-prompts">
       <h2>Default System Prompt</h2>
+      <p style="color: #86868b; font-size: 14px; margin-bottom: 10px;">
+        This is the base system prompt that will <strong>always</strong> be included in every conversation.
+        It serves as the foundation for AI behavior and cannot be disabled by users.
+      </p>
       <textarea id="default-prompt" rows="4" style="width: 100%; padding: 12px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; font-family: inherit; margin-bottom: 15px;"></textarea>
 
       <h2>Presets</h2>
+      <p style="color: #86868b; font-size: 14px; margin-bottom: 10px;">
+        Additional prompts that users can optionally select. These will be <strong>appended after</strong> the default prompt.
+        Users only see preset names, not the full content.
+      </p>
       <div class="actions">
         <button onclick="addPromptPreset()">+ Add Preset</button>
         <button onclick="saveSystemPrompts()">Save All</button>

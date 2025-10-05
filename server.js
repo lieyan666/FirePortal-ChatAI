@@ -398,7 +398,7 @@ app.get('/api/chat/:uuid', (req, res) => {
 // API: 发送消息
 app.post('/api/chat/:uuid', async (req, res) => {
   const { uuid } = req.params;
-  const { message, model, conversationId, systemPrompt } = req.body;
+  const { message, model, conversationId, systemPromptId } = req.body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ success: false, error: 'Message is required' });
@@ -443,8 +443,29 @@ app.post('/api/chat/:uuid', async (req, res) => {
       content: h.content
     }));
 
-    // 添加系统提示词（如果有）
-    const systemPromptContent = systemPrompt || config.systemPrompts?.default || null;
+    // 构建系统提示词（拼接默认 + 用户选择的预设）
+    let systemPromptContent = '';
+
+    // 1. 先添加默认的基础提示词（强制）
+    const defaultPrompt = config.systemPrompts?.default || '';
+    if (defaultPrompt) {
+      systemPromptContent = defaultPrompt;
+    }
+
+    // 2. 如果用户选择了预设，追加在后面
+    if (systemPromptId) {
+      const presets = config.systemPrompts?.presets || [];
+      const selectedPreset = presets.find(p => p.id === systemPromptId);
+      if (selectedPreset && selectedPreset.content) {
+        if (systemPromptContent) {
+          systemPromptContent += '\n\n' + selectedPreset.content;
+        } else {
+          systemPromptContent = selectedPreset.content;
+        }
+      }
+    }
+
+    // 3. 如果有系统提示词，添加到消息列表最前面
     if (systemPromptContent) {
       messages.unshift({
         role: 'system',
@@ -732,7 +753,7 @@ app.get('/api/system-prompts', (req, res) => {
   const presets = config.systemPrompts?.presets || [];
   res.json({
     success: true,
-    presets: presets.map(p => ({ id: p.id, name: p.name, content: p.content }))
+    presets: presets.map(p => ({ id: p.id, name: p.name }))  // 只返回 ID 和名称，不返回内容
   });
 });
 
