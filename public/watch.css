@@ -447,6 +447,45 @@ body {
   margin: 0;
 }
 
+/* Version controls */
+.version-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.version-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.version-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.version-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.version-text {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  user-select: none;
+}
+
 /* 消息元数据（时间和模型） */
 .message-meta {
   font-size: 11px;

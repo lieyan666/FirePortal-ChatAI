@@ -265,13 +265,86 @@ function addChat(uuid, conversationId, role, content, modelId) {
     role: role,
     content: content,
     modelId: modelId || null,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    // 版本支持（用于 assistant 消息的 regenerate）
+    versions: role === 'assistant' ? [{
+      content: content,
+      modelId: modelId || null,
+      timestamp: new Date().toISOString()
+    }] : undefined,
+    currentVersionIndex: role === 'assistant' ? 0 : undefined
   };
   chats.push(chat);
   writeJSON(CHATS_FILE, chats);
 
   // Update conversation's updatedAt
   updateConversation(conversationId, {});
+
+  return chat;
+}
+
+// 为 assistant 消息添加新版本（用于 regenerate）
+function addChatVersion(chatId, content, modelId) {
+  const chats = readJSON(CHATS_FILE);
+  const chat = chats.find(c => c.id === chatId);
+
+  if (!chat || chat.role !== 'assistant') {
+    return null;
+  }
+
+  // 初始化 versions 数组（向后兼容）
+  if (!chat.versions) {
+    chat.versions = [{
+      content: chat.content,
+      modelId: chat.modelId,
+      timestamp: chat.timestamp
+    }];
+  }
+
+  // 添加新版本
+  const newVersion = {
+    content: content,
+    modelId: modelId || null,
+    timestamp: new Date().toISOString()
+  };
+  chat.versions.push(newVersion);
+
+  // 更新当前版本索引为最新版本
+  chat.currentVersionIndex = chat.versions.length - 1;
+
+  // 更新主 content 为最新版本（向后兼容）
+  chat.content = content;
+  chat.modelId = modelId || null;
+
+  writeJSON(CHATS_FILE, chats);
+
+  // Update conversation's updatedAt
+  updateConversation(chat.conversationId, {});
+
+  return chat;
+}
+
+// 切换消息版本
+function switchChatVersion(chatId, versionIndex) {
+  const chats = readJSON(CHATS_FILE);
+  const chat = chats.find(c => c.id === chatId);
+
+  if (!chat || chat.role !== 'assistant' || !chat.versions) {
+    return null;
+  }
+
+  if (versionIndex < 0 || versionIndex >= chat.versions.length) {
+    return null;
+  }
+
+  chat.currentVersionIndex = versionIndex;
+
+  // 更新主 content（向后兼容）
+  const version = chat.versions[versionIndex];
+  chat.content = version.content;
+  chat.modelId = version.modelId;
+
+  writeJSON(CHATS_FILE, chats);
 
   return chat;
 }
@@ -367,6 +440,27 @@ app.post('/admin/api/conversations/:conversationId/restore', requireAdminAuth, (
   res.json({ success: true });
 });
 
+// API: 切换消息版本
+app.post('/api/chat/:chatId/version', (req, res) => {
+  const { chatId } = req.params;
+  const { versionIndex } = req.body;
+
+  if (versionIndex === undefined || versionIndex === null) {
+    return res.status(400).json({ success: false, error: 'Version index is required' });
+  }
+
+  const updatedChat = switchChatVersion(chatId, versionIndex);
+
+  if (!updatedChat) {
+    return res.status(404).json({ success: false, error: 'Chat not found or invalid version' });
+  }
+
+  res.json({
+    success: true,
+    chat: updatedChat
+  });
+});
+
 // API: 获取会话的聊天历史
 app.get('/api/conversations/:conversationId/chats', (req, res) => {
   const { conversationId } = req.params;
@@ -398,7 +492,7 @@ app.get('/api/chat/:uuid', (req, res) => {
 // API: 发送消息
 app.post('/api/chat/:uuid', async (req, res) => {
   const { uuid } = req.params;
-  const { message, model, conversationId, systemPromptId } = req.body;
+  const { message, model, conversationId, systemPromptId, isRegenerate } = req.body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ success: false, error: 'Message is required' });
@@ -432,12 +526,26 @@ app.post('/api/chat/:uuid', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid model' });
     }
 
-    // 保存用户消息（带 modelId）
-    addChat(uuid, conversation.id, 'user', message, selectedModel.id);
-    updateUserActivity(uuid);
+    // 保存用户消息（带 modelId）- 如果不是 regenerate
+    if (!isRegenerate) {
+      addChat(uuid, conversation.id, 'user', message, selectedModel.id);
+      updateUserActivity(uuid);
+    }
 
     // 获取对话历史（最近10条用于上下文）
-    const history = getConversationChats(conversation.id).slice(-10);
+    let history = getConversationChats(conversation.id).slice(-10);
+
+    // 如果是 regenerate，排除最后一条 assistant 消息
+    if (isRegenerate) {
+      // 从后往前找到最后一条 assistant 消息并移除
+      for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].role === 'assistant') {
+          history.splice(i, 1);
+          break;
+        }
+      }
+    }
+
     const messages = history.map(h => ({
       role: h.role,
       content: h.content
@@ -495,8 +603,27 @@ app.post('/api/chat/:uuid', async (req, res) => {
 
     const aiReply = response.data.choices[0].message.content;
 
-    // 保存 AI 回复（带 modelId）
-    addChat(uuid, conversation.id, 'assistant', aiReply, selectedModel.id);
+    let savedChat;
+    let chatId;
+
+    // 如果是 regenerate，添加新版本到最后一条 assistant 消息
+    if (isRegenerate) {
+      const conversationChats = getConversationChats(conversation.id);
+      const lastAssistantChat = conversationChats.reverse().find(c => c.role === 'assistant');
+
+      if (lastAssistantChat) {
+        savedChat = addChatVersion(lastAssistantChat.id, aiReply, selectedModel.id);
+        chatId = lastAssistantChat.id;
+      } else {
+        // 如果没有找到 assistant 消息，创建新的（不应该发生）
+        savedChat = addChat(uuid, conversation.id, 'assistant', aiReply, selectedModel.id);
+        chatId = savedChat.id;
+      }
+    } else {
+      // 正常情况：创建新的 assistant 消息
+      savedChat = addChat(uuid, conversation.id, 'assistant', aiReply, selectedModel.id);
+      chatId = savedChat.id;
+    }
 
     // 更新 token 使用统计
     const users = readJSON(USERS_FILE);
@@ -516,7 +643,11 @@ app.post('/api/chat/:uuid', async (req, res) => {
     res.json({
       success: true,
       reply: aiReply,
-      conversationId: conversation.id
+      conversationId: conversation.id,
+      chatId: chatId,
+      isRegenerate: isRegenerate || false,
+      versions: savedChat && savedChat.versions ? savedChat.versions : undefined,
+      currentVersionIndex: savedChat && savedChat.currentVersionIndex !== undefined ? savedChat.currentVersionIndex : undefined
     });
 
   } catch (error) {

@@ -166,6 +166,35 @@
       messageDiv.appendChild(regenBtn);
     }
 
+    // 如果是 AI 消息且有多个版本，添加版本切换控件
+    if (role === 'assistant' && chat && chat.versions && chat.versions.length > 1) {
+      var versionDiv = document.createElement('div');
+      versionDiv.className = 'version-controls';
+
+      var prevBtn = document.createElement('button');
+      prevBtn.className = 'version-btn';
+      prevBtn.textContent = '←';
+      prevBtn.onclick = function() {
+        switchVersion(chat.id, chat.currentVersionIndex - 1);
+      };
+
+      var versionText = document.createElement('span');
+      versionText.className = 'version-text';
+      versionText.textContent = (chat.currentVersionIndex + 1) + '/' + chat.versions.length;
+
+      var nextBtn = document.createElement('button');
+      nextBtn.className = 'version-btn';
+      nextBtn.textContent = '→';
+      nextBtn.onclick = function() {
+        switchVersion(chat.id, chat.currentVersionIndex + 1);
+      };
+
+      versionDiv.appendChild(prevBtn);
+      versionDiv.appendChild(versionText);
+      versionDiv.appendChild(nextBtn);
+      messageDiv.appendChild(versionDiv);
+    }
+
     return messageDiv;
   }
 
@@ -493,16 +522,7 @@
   function regenerateWithMessage(message, modelId) {
     if (isLoading || !currentConversation) return;
 
-    // 移除最后一条 AI 消息
-    var messagesContainer = document.getElementById('messages');
-    var messages = messagesContainer.getElementsByClassName('message');
-    for (var i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].classList.contains('assistant')) {
-        messagesContainer.removeChild(messages[i]);
-        break;
-      }
-    }
-
+    // 不再移除最后一条 AI 消息，因为 regenerate 会更新它（添加新版本）
     sendMessage(message, true, modelId || (selectedModel ? selectedModel.id : null));
   }
 
@@ -923,17 +943,23 @@
         try {
           var response = JSON.parse(xhr.responseText);
           if (response.success && response.reply) {
-            // 如果是重新生成，移除最后一条 AI 消息（已在 regenerateWithMessage 中处理）
-
-            // 添加新的 AI 回复，显示重新生成按钮
             var aiChat = {
-              id: 'temp-ai-' + Date.now(),
+              id: response.chatId || 'temp-ai-' + Date.now(),
               role: 'assistant',
               content: response.reply,
               modelId: useModelId,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              versions: response.versions,
+              currentVersionIndex: response.currentVersionIndex
             };
-            addMessage('assistant', response.reply, true, aiChat);
+
+            if (isRegenerate) {
+              // 如果是重新生成，更新最后一条 assistant 消息
+              updateLastAssistantMessage(aiChat);
+            } else {
+              // 正常情况：添加新的 AI 回复
+              addMessage('assistant', response.reply, true, aiChat);
+            }
 
             // 如果返回了新的会话ID，更新当前会话
             if (response.conversationId && (!currentConversation || currentConversation.id !== response.conversationId)) {
@@ -964,8 +990,155 @@
       message: message,
       model: useModelId,
       conversationId: currentConversation ? currentConversation.id : null,
-      systemPromptId: useSystemPromptId
+      systemPromptId: useSystemPromptId,
+      isRegenerate: isRegenerate || false
     }));
+  }
+
+  // 更新版本控制按钮
+  function updateVersionControls(messageDiv, chat) {
+    // 移除旧的版本控制
+    var oldControls = messageDiv.querySelector('.version-controls');
+    if (oldControls) {
+      messageDiv.removeChild(oldControls);
+    }
+
+    // 如果有多个版本，添加新的版本控制
+    if (chat.versions && chat.versions.length > 1) {
+      var versionDiv = document.createElement('div');
+      versionDiv.className = 'version-controls';
+
+      var prevBtn = document.createElement('button');
+      prevBtn.className = 'version-btn';
+      prevBtn.textContent = '←';
+      prevBtn.disabled = chat.currentVersionIndex === 0;
+      prevBtn.onclick = function() {
+        switchVersion(chat.id, chat.currentVersionIndex - 1);
+      };
+
+      var versionText = document.createElement('span');
+      versionText.className = 'version-text';
+      versionText.textContent = (chat.currentVersionIndex + 1) + '/' + chat.versions.length;
+
+      var nextBtn = document.createElement('button');
+      nextBtn.className = 'version-btn';
+      nextBtn.textContent = '→';
+      nextBtn.disabled = chat.currentVersionIndex === chat.versions.length - 1;
+      nextBtn.onclick = function() {
+        switchVersion(chat.id, chat.currentVersionIndex + 1);
+      };
+
+      versionDiv.appendChild(prevBtn);
+      versionDiv.appendChild(versionText);
+      versionDiv.appendChild(nextBtn);
+      messageDiv.appendChild(versionDiv);
+    }
+  }
+
+  // 切换消息版本
+  function switchVersion(chatId, versionIndex) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/chat/' + chatId + '/version', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+
+    xhr.onload = function() {
+      if (xhr.status === 200) {
+        try {
+          var response = JSON.parse(xhr.responseText);
+          if (response.success && response.chat) {
+            // 找到对应的消息元素并更新
+            updateMessageByChatId(response.chat);
+          }
+        } catch (e) {
+          showError('Parse error');
+        }
+      } else {
+        showError('Failed to switch version');
+      }
+    };
+
+    xhr.onerror = function() {
+      showError('Network error');
+    };
+
+    xhr.send(JSON.stringify({ versionIndex: versionIndex }));
+  }
+
+  // 根据 chatId 更新消息
+  function updateMessageByChatId(chat) {
+    var messagesContainer = document.getElementById('messages');
+    var messages = messagesContainer.getElementsByClassName('message');
+
+    for (var i = 0; i < messages.length; i++) {
+      var messageDiv = messages[i];
+      if (messageDiv.getAttribute('data-chat-id') === chat.id) {
+        // 更新内容
+        var contentDiv = messageDiv.querySelector('.message-content');
+        if (contentDiv) {
+          contentDiv.innerHTML = parseMarkdown(chat.content);
+        }
+
+        // 更新版本控制
+        updateVersionControls(messageDiv, chat);
+
+        // 更新元数据
+        var metaDiv = messageDiv.querySelector('.message-meta');
+        if (metaDiv && chat.versions && chat.versions.length > 0) {
+          var currentVersion = chat.versions[chat.currentVersionIndex];
+          var timeText = formatChatTime(currentVersion.timestamp);
+          var modelText = currentVersion.modelId ? getModelNameById(currentVersion.modelId) : '';
+
+          if (modelText) {
+            metaDiv.textContent = timeText + ' · ' + modelText;
+          } else {
+            metaDiv.textContent = timeText;
+          }
+        }
+
+        break;
+      }
+    }
+  }
+
+  // 更新最后一条 assistant 消息（用于 regenerate）
+  function updateLastAssistantMessage(chat) {
+    var messagesContainer = document.getElementById('messages');
+    var messages = messagesContainer.getElementsByClassName('message');
+
+    // 从后往前找最后一条 assistant 消息
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].classList.contains('assistant')) {
+        var messageDiv = messages[i];
+
+        // 更新 chatId（重要！用于版本切换）
+        messageDiv.setAttribute('data-chat-id', chat.id);
+
+        // 更新内容
+        var contentDiv = messageDiv.querySelector('.message-content');
+        if (contentDiv) {
+          contentDiv.innerHTML = parseMarkdown(chat.content);
+        }
+
+        // 更新版本信息
+        updateVersionControls(messageDiv, chat);
+
+        // 更新元数据
+        var metaDiv = messageDiv.querySelector('.message-meta');
+        if (metaDiv && chat.versions && chat.versions.length > 0) {
+          var currentVersion = chat.versions[chat.currentVersionIndex];
+          var timeText = formatChatTime(currentVersion.timestamp);
+          var modelText = currentVersion.modelId ? getModelNameById(currentVersion.modelId) : '';
+
+          if (modelText) {
+            metaDiv.textContent = timeText + ' · ' + modelText;
+          } else {
+            metaDiv.textContent = timeText;
+          }
+        }
+
+        break;
+      }
+    }
   }
 
   // 重新生成最后的回复
